@@ -346,7 +346,7 @@ const App = () => {
     const isCompleted = progress === 100;
 
     return (
-      <div className={`p-6 rounded-2xl border transition-all duration-300 ${isCompleted ? 'bg-slate-800 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'}`}>
+      <div className={`p-5 md:p-6 rounded-3xl border transition-all duration-300 backdrop-blur-sm ${isCompleted ? 'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.15)]' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
             <Calendar className="w-6 h-6 text-emerald-400" />
@@ -432,9 +432,9 @@ const App = () => {
               <Target className="w-6 h-6 text-emerald-500" />
               Plan Financiero <span className="text-emerald-500">2026</span>
             </h1>
-            <div className="flex items-center gap-4 mt-1">
-              <p className="text-slate-400 text-sm flex items-center gap-1">
-                <Flame className="w-4 h-4 text-orange-500" /> Racha: {racha}
+            <div className="flex items-center gap-3 mt-1 5">
+              <p className="text-slate-400 text-sm flex items-center gap-1 font-medium bg-slate-800/30 px-3 py-1 rounded-full border border-slate-700/50">
+                <Flame className="w-4 h-4 text-orange-500" /> <span className="text-white font-bold">{racha}</span>
               </p>
 
               {/* Achievement Badges */}
@@ -445,16 +445,17 @@ const App = () => {
             </div>
           </div>
 
-          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 w-full md:w-auto">
+          {/* Desktop Nav */}
+          <div className="hidden md:flex bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 w-auto">
             <button
               onClick={() => setActiveTab('contable')}
-              className={`flex-1 md:w-32 py-2 px-4 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'contable' ? 'bg-slate-800 text-emerald-400 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`py-2 px-6 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'contable' ? 'bg-emerald-500/20 text-emerald-400 shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'}`}
             >
               <CheckSquare className="w-4 h-4" /> Contable
             </button>
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`flex-1 md:w-32 py-2 px-4 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'dashboard' ? 'bg-slate-800 text-emerald-400 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`py-2 px-6 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/20 text-emerald-400 shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'}`}
             >
               <LayoutDashboard className="w-4 h-4" /> Dashboard
             </button>
@@ -474,9 +475,9 @@ const App = () => {
               </div>
               <button
                 onClick={cerrarMes}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex-shrink-0 font-bold shadow-lg shadow-indigo-500/20"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors w-full sm:w-auto font-bold shadow-lg shadow-indigo-500/20"
               >
-                <AlertCircle className="w-4 h-4" /> Cerrar Mes y Abonar
+                <AlertCircle className="w-4 h-4" /> Cierre de Mes
               </button>
             </div>
 
@@ -485,8 +486,8 @@ const App = () => {
               {renderChecklist(q2Tasks, 2)}
             </div>
 
-            <div className="bg-slate-900 border border-emerald-500/20 p-8 rounded-2xl text-center relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
+            <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/30 p-8 rounded-3xl text-center relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl shadow-emerald-900/10">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-[60px]"></div>
 
               <div className="text-left flex-1 z-10 w-full">
                 <h3 className="text-emerald-300 font-bold mb-2 uppercase tracking-wider text-sm flex items-center gap-2">
@@ -508,27 +509,27 @@ const App = () => {
               </div>
 
               {/* Side Hustle Component */}
-              <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl w-full md:w-80 shadow-xl z-10 flex-shrink-0">
-                <h4 className="font-bold text-slate-200 mb-3 flex items-center gap-2 text-sm"><PlusCircle className="w-4 h-4 text-emerald-400" /> Ingreso Extra (Hustle)</h4>
+              <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-5 rounded-2xl w-full md:w-80 shadow-2xl z-10 flex-shrink-0">
+                <h4 className="font-bold text-slate-200 mb-4 flex items-center gap-2 text-sm"><PlusCircle className="w-4 h-4 text-emerald-400" /> Activar Ingreso Extra</h4>
 
-                <form onSubmit={addSideHustle} className="space-y-2">
+                <form onSubmit={addSideHustle} className="space-y-3">
                   <input
                     type="text" required
                     value={newHustleDesc} onChange={e => setNewHustleDesc(e.target.value)}
-                    placeholder="Ej. Viaje Uber, Venta..."
-                    className="w-full bg-slate-800 text-sm border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                    placeholder="Ej. Uber, Venta..."
+                    className="w-full bg-slate-900/50 text-sm border-slate-700/50 rounded-xl p-3 text-white placeholder-slate-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
                   />
                   <div className="flex gap-2">
-                    <span className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-slate-400 flex items-center justify-center">$</span>
+                    <span className="bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 text-slate-400 flex items-center justify-center font-bold">$</span>
                     <input
                       type="number" required min="1" step="0.01"
                       value={newHustleAmount} onChange={e => setNewHustleAmount(e.target.value)}
-                      placeholder="Monto"
-                      className="w-full bg-slate-800 text-sm border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                      placeholder="0.00"
+                      className="w-full bg-slate-900/50 text-sm border-slate-700/50 rounded-xl p-3 text-white placeholder-slate-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-mono"
                     />
                   </div>
-                  <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm transition-colors mt-2">
-                    Sumar a Bola de Nieve
+                  <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-sm transition-all mt-2 shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)]">
+                    Inyectar Fuego
                   </button>
                 </form>
 
@@ -626,11 +627,29 @@ const App = () => {
 
       </main>
 
-      <footer className="max-w-4xl mx-auto p-6 mt-8 text-center text-slate-500 text-sm">
+      <footer className="max-w-4xl mx-auto p-6 mt-8 mb-24 md:mb-8 text-center text-slate-500 text-sm">
         <p>
           by fernely 2026 • <a href="https://fernelydev.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 font-medium transition-colors">fernelydev.com</a>
         </p>
       </footer>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-4">
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl flex p-1.5 shadow-2xl">
+          <button
+            onClick={() => setActiveTab('contable')}
+            className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'contable' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <CheckSquare className="w-5 h-5" /> Contable
+          </button>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <LayoutDashboard className="w-5 h-5" /> Dashboard
+          </button>
+        </div>
+      </div>
 
       <style dangerouslySetInnerHTML={{
         __html: `

@@ -132,15 +132,66 @@ const App = () => {
 
   const totalSideHustle = sideHustles.reduce((acc, curr) => acc + curr.amount, 0);
 
-  // Power calculation
-  const getSnowballTotal = () => {
-    let sum = totalSideHustle;
-    [...q1Tasks, ...q2Tasks].forEach(t => {
-      if (t.type === 'snowball' || t.type === 'debt-min') sum += (t.amount - (t.adelanto || 0));
-    });
-    return sum;
-  }
-  const currentDestructivePower = getSnowballTotal();
+  const totalMinimosOtras = [...q1Tasks, ...q2Tasks].reduce((acc, t) => {
+    if (t.type === 'debt-min' && t.debtId !== activeDebt.id) return acc + (t.amount - (t.adelanto || 0));
+    return acc;
+  }, 0);
+
+  const poderAtaqueActiva = [...q1Tasks, ...q2Tasks].reduce((acc, t) => {
+    if (t.type === 'snowball' || (t.type === 'debt-min' && t.debtId === activeDebt.id)) return acc + (t.amount - (t.adelanto || 0));
+    return acc;
+  }, totalSideHustle);
+
+  const poderTotalDeudas = totalMinimosOtras + poderAtaqueActiva;
+
+  const payoffDatesMemo = React.useMemo(() => {
+    let result = {};
+    let tempDebts = debts.map(d => ({ ...d }));
+    let monthsElapsed = 0;
+
+    while (tempDebts.some(d => d.balance > 0) && monthsElapsed < 240) {
+      monthsElapsed++;
+      let snowball = (monthsElapsed === 1) ? totalSideHustle : 0;
+      [...q1Tasks, ...q2Tasks].forEach(t => { if (t.type === 'snowball') snowball += t.amount; });
+
+      tempDebts.forEach(d => {
+        if (d.balance > 0) {
+          let minPayment = 0;
+          [...q1Tasks, ...q2Tasks].forEach(t => { if (t.type === 'debt-min' && t.debtId === d.id) minPayment += t.amount; });
+          if (minPayment > d.balance) {
+            snowball += (minPayment - d.balance);
+            d.balance = 0;
+          } else {
+            d.balance -= minPayment;
+          }
+        }
+      });
+
+      for (let i = 0; i < tempDebts.length; i++) {
+        if (snowball <= 0) break;
+        if (tempDebts[i].balance > 0) {
+          if (snowball >= tempDebts[i].balance) {
+            snowball -= tempDebts[i].balance;
+            tempDebts[i].balance = 0;
+          } else {
+            tempDebts[i].balance -= snowball;
+            snowball = 0;
+          }
+        }
+      }
+
+      tempDebts.forEach(d => {
+        if (d.balance === 0 && !result[d.id]) {
+          const dObj = new Date();
+          dObj.setMonth(dObj.getMonth() + monthsElapsed);
+          const mesNum = dObj.getMonth() + 1; // 1-12
+          const year = dObj.getFullYear();
+          result[d.id] = `${mesNum < 10 ? '0' + mesNum : mesNum}/${year}`;
+        }
+      });
+    }
+    return result;
+  }, [debts, q1Tasks, q2Tasks, totalSideHustle]);
 
   // Check achievements
   useEffect(() => {
@@ -214,29 +265,7 @@ const App = () => {
     }
   };
 
-  const getPayoffDate = (debtId) => {
-    // Estimación simple basada en el poder de destrucción mensual (aprox $950 base + side hustles)
-    const monthlyPower = 950 + totalSideHustle;
-    if (monthlyPower <= 0) return "---";
-
-    let remainingPower = monthlyPower;
-    let accumulatedMonths = 0;
-    let tempDebts = debts.map(d => ({ ...d }));
-
-    // Calcular en qué mes cae cada deuda
-    for (const d of tempDebts) {
-      if (d.balance <= 0) continue;
-
-      const monthsToPayThis = d.balance / monthlyPower;
-      accumulatedMonths += monthsToPayThis;
-
-      if (d.id === debtId) break;
-    }
-
-    const targetDate = new Date();
-    targetDate.setMonth(targetDate.getMonth() + Math.ceil(accumulatedMonths));
-    return targetDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  };
+  // payoffDatesMemo takes care of forecasting now
 
   const cerrarMes = () => {
     if (!window.confirm("¿Seguro que quieres CERRAR EL MES? Esto aplicará los pagos realizados a tus deudas y reiniciará el check de tareas.")) return;
@@ -460,13 +489,22 @@ const App = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
 
               <div className="text-left flex-1 z-10 w-full">
-                <h3 className="text-emerald-300 font-bold mb-2 uppercase tracking-wider text-sm">Poder Máximo de Destrucción</h3>
-                <p className="text-4xl md:text-5xl font-black text-emerald-400 tracking-tighter">
-                  ${currentDestructivePower}
+                <h3 className="text-emerald-300 font-bold mb-2 uppercase tracking-wider text-sm flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-400" /> Fuego contra {activeDebt.name}
+                </h3>
+                <p className="text-4xl md:text-5xl font-black text-emerald-400 tracking-tighter shadow-emerald-500/20 drop-shadow-lg">
+                  ${poderAtaqueActiva}
                 </p>
-                <p className="text-sm text-emerald-300/70 mt-3">
-                  Se destinará a: <strong className="text-emerald-300">{activeDebt.name}</strong> al cerrar el mes.
-                </p>
+                <div className="mt-4 pt-4 border-t border-emerald-500/20 text-xs text-emerald-300/80 flex flex-col gap-1.5 font-medium">
+                  <div className="flex justify-between items-center gap-2">
+                    <span>Manteniendo otras deudas:</span>
+                    <span className="font-mono text-emerald-100">${totalMinimosOtras}</span>
+                  </div>
+                  <div className="flex justify-between items-center gap-2 text-emerald-400 font-bold">
+                    <span>Poder de Destrucción Total:</span>
+                    <span className="font-mono">${poderTotalDeudas}</span>
+                  </div>
+                </div>
               </div>
 
               {/* Side Hustle Component */}
@@ -541,8 +579,8 @@ const App = () => {
                             {i + 1}. {debt.name} (${debt.balance.toLocaleString()})
                           </span>
                           {!isSaldada && (
-                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                              <Calendar className="w-3 h-3" /> Meta: {getPayoffDate(debt.id)}
+                            <span className="text-[10px] text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-indigo-400" /> Meta Cero: {payoffDatesMemo[debt.id] || "---"}
                             </span>
                           )}
                         </div>

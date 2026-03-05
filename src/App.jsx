@@ -87,8 +87,14 @@ const App = () => {
 
   // State initialized from local storage
   const [racha, setRacha] = useState(() => loadData('meta2026_racha', 0));
-  const [q1Tasks, setQ1Tasks] = useState(() => loadData('meta2026_q1_v2', DEFAULT_Q1));
-  const [q2Tasks, setQ2Tasks] = useState(() => loadData('meta2026_q2_v2', DEFAULT_Q2));
+  const [q1Tasks, setQ1Tasks] = useState(() => {
+    const data = loadData('meta2026_q1_v2', DEFAULT_Q1);
+    return data.map(t => t.id === 'q1-11' && t.amount === 275 ? { ...t, amount: 125 } : t);
+  });
+  const [q2Tasks, setQ2Tasks] = useState(() => {
+    const data = loadData('meta2026_q2_v2', DEFAULT_Q2);
+    return data.map(t => t.id === 'q2-12' && t.amount === 375 ? { ...t, amount: 225 } : t);
+  });
 
   const [incomes, setIncomes] = useState(() => loadData('meta2026_incomes', DEFAULT_INCOMES));
   const [expenses, setExpenses] = useState(() => loadData('meta2026_expenses', DEFAULT_EXPENSES));
@@ -190,8 +196,12 @@ const App = () => {
   };
 
   const handleAdelanto = (e, quincena, id) => {
-    e.stopPropagation(); // Evita que se marque como done al hacer click
-    const value = window.prompt("¿Cuánto ya adelantaste o pagaste?");
+    e.stopPropagation();
+    const tasks = quincena === 1 ? q1Tasks : q2Tasks;
+    const task = tasks.find(t => t.id === id);
+    const currentValue = task?.adelanto || 0;
+
+    const value = window.prompt("¿Cuánto ya adelantaste o pagaste? (Actual: $" + currentValue + ")", currentValue);
     if (value !== null) {
       const parsed = parseFloat(value);
       if (!isNaN(parsed) && parsed >= 0) {
@@ -202,6 +212,30 @@ const App = () => {
         }
       }
     }
+  };
+
+  const getPayoffDate = (debtId) => {
+    // Estimación simple basada en el poder de destrucción mensual (aprox $950 base + side hustles)
+    const monthlyPower = 950 + totalSideHustle;
+    if (monthlyPower <= 0) return "---";
+
+    let remainingPower = monthlyPower;
+    let accumulatedMonths = 0;
+    let tempDebts = debts.map(d => ({ ...d }));
+
+    // Calcular en qué mes cae cada deuda
+    for (const d of tempDebts) {
+      if (d.balance <= 0) continue;
+
+      const monthsToPayThis = d.balance / monthlyPower;
+      accumulatedMonths += monthsToPayThis;
+
+      if (d.id === debtId) break;
+    }
+
+    const targetDate = new Date();
+    targetDate.setMonth(targetDate.getMonth() + Math.ceil(accumulatedMonths));
+    return targetDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   };
 
   const cerrarMes = () => {
@@ -502,20 +536,27 @@ const App = () => {
                   return (
                     <div key={debt.id} className="relative">
                       <div className="flex justify-between mb-2">
-                        <span className={`font-semibold text-sm ${isSaldada ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
-                          {i + 1}. {debt.name} (${debt.balance.toLocaleString()})
-                        </span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${isSaldada ? 'bg-emerald-500/10 text-emerald-500' :
-                            isActiva ? 'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/50' :
-                              'bg-slate-800 text-slate-400'
+                        <div className="flex flex-col">
+                          <span className={`font-semibold text-sm ${isSaldada ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                            {i + 1}. {debt.name} (${debt.balance.toLocaleString()})
+                          </span>
+                          {!isSaldada && (
+                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" /> Meta: {getPayoffDate(debt.id)}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded self-start ${isSaldada ? 'bg-emerald-500/10 text-emerald-500' :
+                          isActiva ? 'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/50' :
+                            'bg-slate-800 text-slate-400'
                           }`}>
                           {isSaldada ? '¡Saldada!' : isActiva ? 'Objetivo Actual' : 'En Espera'}
                         </span>
                       </div>
                       <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
                         <div className={`h-full transition-all duration-1000 ${isSaldada ? 'bg-emerald-500' :
-                            isActiva ? 'bg-gradient-to-r from-indigo-600 to-indigo-400 relative' :
-                              'bg-slate-600'
+                          isActiva ? 'bg-gradient-to-r from-indigo-600 to-indigo-400 relative' :
+                            'bg-slate-600'
                           }`} style={{ width: `${pct}%` }}>
                           {isActiva && <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 animate-pulse rounded-full blur-sm"></div>}
                         </div>

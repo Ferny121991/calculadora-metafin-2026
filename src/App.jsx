@@ -3,7 +3,8 @@ import {
   Wallet, TrendingDown, Plane, Car, Home, Smartphone,
   Zap, Wifi, Utensils, Scissors, Heart, Gift,
   Target, DollarSign, Calendar, LayoutDashboard, CheckSquare, Square,
-  Trophy, Flame, Sparkles, Shield, RefreshCw, PlusCircle, AlertCircle
+  Trophy, Flame, Sparkles, Shield, RefreshCw, PlusCircle, AlertCircle,
+  Edit3, ArrowRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -39,14 +40,15 @@ const DEFAULT_Q1 = [
   { id: 'q1-3', type: 'fixed', text: 'Separar Diezmo', amount: 130, done: false },
   { id: 'q1-4', type: 'fixed', text: 'Pagar Luz', amount: 90, done: false },
   { id: 'q1-5', type: 'fixed', text: 'Pagar Internet', amount: 70, done: false },
-  { id: 'q1-12', type: 'debt', text: 'Pago Mínimo Préstamo Personal', amount: 165, done: false },
-  { id: 'q1-6', type: 'variable', text: 'Enviar a Sheila (Mitad)', amount: 140, done: false },
-  { id: 'q1-7', type: 'variable', text: 'Separar Comida', amount: 75, done: false },
-  { id: 'q1-8', type: 'variable', text: 'Separar Gasolina', amount: 100, done: false },
-  { id: 'q1-9', type: 'variable', text: 'Separar Recorte y Gustos', amount: 85, done: false },
+  { id: 'q1-12', type: 'debt-min', debtId: 'personal', text: 'Pago Mínimo Préstamo Personal', amount: 165, done: false },
+  { id: 'q1-14', type: 'debt-min', debtId: 'tarjeta', text: 'Pago Normal Tarjeta', amount: 150, done: false },
+  { id: 'q1-6', type: 'variable', text: 'Enviar a Sheila (Mitad)', amount: 140, done: false, adelanto: 0 },
+  { id: 'q1-7', type: 'variable', text: 'Separar Comida', amount: 75, done: false, adelanto: 0 },
+  { id: 'q1-8', type: 'variable', text: 'Separar Gasolina', amount: 100, done: false, adelanto: 0 },
+  { id: 'q1-9', type: 'variable', text: 'Separar Recorte y Gustos', amount: 85, done: false, adelanto: 0 },
   { id: 'q1-10', type: 'savings', text: 'Guardar para Viaje RD', amount: 80, done: false },
   { id: 'q1-13', type: 'savings', text: 'Fondo de Emergencia', amount: 100, done: false },
-  { id: 'q1-11', type: 'debt', text: 'Abonar EXCEDENTE a Tarjeta', amount: 275, done: false },
+  { id: 'q1-11', type: 'snowball', text: 'Abonar EXCEDENTE a', amount: 125, done: false, isDynamic: true },
 ];
 
 const DEFAULT_Q2 = [
@@ -56,16 +58,22 @@ const DEFAULT_Q2 = [
   { id: 'q2-4', type: 'fixed', text: 'Separar Diezmo', amount: 130, done: false },
   { id: 'q2-5', type: 'fixed', text: 'Pagar Teléfono', amount: 60, done: false },
   { id: 'q2-6', type: 'fixed', text: 'Pagar Suscripciones', amount: 60, done: false },
-  { id: 'q2-13', type: 'debt', text: 'Pago Mínimo Estudiantil', amount: 135, done: false },
-  { id: 'q2-7', type: 'variable', text: 'Enviar a Sheila (Mitad)', amount: 140, done: false },
-  { id: 'q2-8', type: 'variable', text: 'Separar Comida', amount: 75, done: false },
-  { id: 'q2-9', type: 'variable', text: 'Separar Gasolina', amount: 100, done: false },
-  { id: 'q2-10', type: 'variable', text: 'Separar Recorte y Gustos', amount: 85, done: false },
+  { id: 'q2-13', type: 'debt-min', debtId: 'estudiantil', text: 'Pago Mínimo Estudiantil', amount: 135, done: false },
+  { id: 'q2-15', type: 'debt-min', debtId: 'tarjeta', text: 'Pago Normal Tarjeta', amount: 150, done: false },
+  { id: 'q2-7', type: 'variable', text: 'Enviar a Sheila (Mitad)', amount: 140, done: false, adelanto: 0 },
+  { id: 'q2-8', type: 'variable', text: 'Separar Comida', amount: 75, done: false, adelanto: 0 },
+  { id: 'q2-9', type: 'variable', text: 'Separar Gasolina', amount: 100, done: false, adelanto: 0 },
+  { id: 'q2-10', type: 'variable', text: 'Separar Recorte y Gustos', amount: 85, done: false, adelanto: 0 },
   { id: 'q2-11', type: 'savings', text: 'Guardar para Viaje RD', amount: 80, done: false },
   { id: 'q2-14', type: 'savings', text: 'Fondo de Emergencia', amount: 100, done: false },
-  { id: 'q2-12', type: 'debt', text: 'Abonar EXCEDENTE a Tarjeta', amount: 375, done: false },
+  { id: 'q2-12', type: 'snowball', text: 'Abonar EXCEDENTE a', amount: 225, done: false, isDynamic: true },
 ];
 
+const DEFAULT_DEBTS = [
+  { id: 'tarjeta', name: 'Tarjeta', balance: 2500, initial: 2500 },
+  { id: 'personal', name: 'Préstamo Personal', balance: 3120, initial: 3120 },
+  { id: 'estudiantil', name: 'Préstamo Estudiantil', balance: 11800, initial: 11800 },
+];
 
 // --- Helper Functions for Local Storage ---
 const loadData = (key, defaultData) => {
@@ -79,11 +87,12 @@ const App = () => {
 
   // State initialized from local storage
   const [racha, setRacha] = useState(() => loadData('meta2026_racha', 0));
-  const [q1Tasks, setQ1Tasks] = useState(() => loadData('meta2026_q1', DEFAULT_Q1));
-  const [q2Tasks, setQ2Tasks] = useState(() => loadData('meta2026_q2', DEFAULT_Q2));
+  const [q1Tasks, setQ1Tasks] = useState(() => loadData('meta2026_q1_v2', DEFAULT_Q1));
+  const [q2Tasks, setQ2Tasks] = useState(() => loadData('meta2026_q2_v2', DEFAULT_Q2));
 
   const [incomes, setIncomes] = useState(() => loadData('meta2026_incomes', DEFAULT_INCOMES));
   const [expenses, setExpenses] = useState(() => loadData('meta2026_expenses', DEFAULT_EXPENSES));
+  const [debts, setDebts] = useState(() => loadData('meta2026_debts_v2', DEFAULT_DEBTS));
 
   // Side Hustle Tracker State
   const [sideHustles, setSideHustles] = useState(() => loadData('meta2026_sideHustles', []));
@@ -98,10 +107,11 @@ const App = () => {
 
   // Save to local storage whenever state changes
   useEffect(() => { localStorage.setItem('meta2026_racha', JSON.stringify(racha)); }, [racha]);
-  useEffect(() => { localStorage.setItem('meta2026_q1', JSON.stringify(q1Tasks)); }, [q1Tasks]);
-  useEffect(() => { localStorage.setItem('meta2026_q2', JSON.stringify(q2Tasks)); }, [q2Tasks]);
+  useEffect(() => { localStorage.setItem('meta2026_q1_v2', JSON.stringify(q1Tasks)); }, [q1Tasks]);
+  useEffect(() => { localStorage.setItem('meta2026_q2_v2', JSON.stringify(q2Tasks)); }, [q2Tasks]);
   useEffect(() => { localStorage.setItem('meta2026_incomes', JSON.stringify(incomes)); }, [incomes]);
   useEffect(() => { localStorage.setItem('meta2026_expenses', JSON.stringify(expenses)); }, [expenses]);
+  useEffect(() => { localStorage.setItem('meta2026_debts_v2', JSON.stringify(debts)); }, [debts]);
   useEffect(() => { localStorage.setItem('meta2026_sideHustles', JSON.stringify(sideHustles)); }, [sideHustles]);
   useEffect(() => { localStorage.setItem('meta2026_achievements', JSON.stringify(achievements)); }, [achievements]);
 
@@ -110,15 +120,21 @@ const App = () => {
   const totalIncome = incomes.reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpense = expenses.reduce((acc, curr) => acc + curr.amount, 0);
 
-  // Deuda Total Inicial
-  const deudaTotalInicial = 17420; // 2500 + 3120 + 11800
+  const activeDebt = debts.find(d => d.balance > 0) || debts[debts.length - 1]; // Fallback to last if all paid
+  const totalDebtBalance = debts.reduce((acc, curr) => acc + curr.balance, 0);
+  const deudaTotalInicial = debts.reduce((acc, curr) => acc + curr.initial, 0);
 
   const totalSideHustle = sideHustles.reduce((acc, curr) => acc + curr.amount, 0);
-  const baseDebtPayment = q1Tasks.filter(t => t.type === 'debt').reduce((acc, curr) => acc + curr.amount, 0) +
-    q2Tasks.filter(t => t.type === 'debt').reduce((acc, curr) => acc + curr.amount, 0);
 
-  const currentDestructivePower = baseDebtPayment + totalSideHustle;
-
+  // Power calculation
+  const getSnowballTotal = () => {
+    let sum = totalSideHustle;
+    [...q1Tasks, ...q2Tasks].forEach(t => {
+      if (t.type === 'snowball' || t.type === 'debt-min') sum += (t.amount - (t.adelanto || 0));
+    });
+    return sum;
+  }
+  const currentDestructivePower = getSnowballTotal();
 
   // Check achievements
   useEffect(() => {
@@ -166,7 +182,6 @@ const App = () => {
       isCompleted = newTasks.every(t => t.done);
     }
 
-    // Checking old state vs new to increment racha uniquely (simplification)
     const oldWasCompleted = quincena === 1 ? q1Tasks.every(t => t.done) : q2Tasks.every(t => t.done);
     if (isCompleted && !oldWasCompleted) {
       triggerConfetti();
@@ -174,11 +189,66 @@ const App = () => {
     }
   };
 
-  const resetMonth = () => {
-    if (window.confirm("¿Seguro que quieres reiniciar las quincenas? (Se desmarcarán todas las tareas, pero la Racha y Side Hustles se mantienen)")) {
-      setQ1Tasks(q1Tasks.map(t => ({ ...t, done: false })));
-      setQ2Tasks(q2Tasks.map(t => ({ ...t, done: false })));
+  const handleAdelanto = (e, quincena, id) => {
+    e.stopPropagation(); // Evita que se marque como done al hacer click
+    const value = window.prompt("¿Cuánto ya adelantaste o pagaste?");
+    if (value !== null) {
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed) && parsed >= 0) {
+        if (quincena === 1) {
+          setQ1Tasks(q1Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
+        } else {
+          setQ2Tasks(q2Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
+        }
+      }
     }
+  };
+
+  const cerrarMes = () => {
+    if (!window.confirm("¿Seguro que quieres CERRAR EL MES? Esto aplicará los pagos realizados a tus deudas y reiniciará el check de tareas.")) return;
+
+    let newDebts = [...debts];
+    const allTasks = [...q1Tasks, ...q2Tasks];
+
+    // 1. Aplicar pagos normales y mínimos
+    allTasks.forEach(t => {
+      if (t.done && t.type === 'debt-min' && t.debtId) {
+        const dIndex = newDebts.findIndex(d => d.id === t.debtId);
+        if (dIndex !== -1) {
+          newDebts[dIndex].balance = Math.max(0, newDebts[dIndex].balance - (t.amount - (t.adelanto || 0)));
+        }
+      }
+    });
+
+    // 2. Calcular fondo Snowball (excedentes fijos + side hustles)
+    let snowballMonto = totalSideHustle;
+    allTasks.forEach(t => {
+      if (t.done && t.type === 'snowball') {
+        snowballMonto += (t.amount - (t.adelanto || 0));
+      }
+    });
+
+    // 3. Aplicar bola de nieve en cascada
+    for (let i = 0; i < newDebts.length; i++) {
+      if (snowballMonto <= 0) break;
+      if (newDebts[i].balance > 0) {
+        if (snowballMonto >= newDebts[i].balance) {
+          snowballMonto -= newDebts[i].balance;
+          newDebts[i].balance = 0; // Saldada!
+        } else {
+          newDebts[i].balance -= snowballMonto;
+          snowballMonto = 0;
+        }
+      }
+    }
+
+    setDebts(newDebts);
+    setQ1Tasks(q1Tasks.map(t => ({ ...t, done: false, adelanto: 0 })));
+    setQ2Tasks(q2Tasks.map(t => ({ ...t, done: false, adelanto: 0 })));
+    setSideHustles([]);
+
+    triggerConfetti();
+    alert("¡Mes cerrado exitosamente! Deudas actualizadas.");
   };
 
   const addSideHustle = (e) => {
@@ -193,7 +263,7 @@ const App = () => {
     }]);
     setNewHustleDesc('');
     setNewHustleAmount('');
-    triggerConfetti(); // Mini celebration
+    triggerConfetti();
   };
 
   const deleteSideHustle = (id) => {
@@ -203,8 +273,6 @@ const App = () => {
 
   // ================= UI RENDERERS =================
 
-  // Gamification Theme Logic
-  // The more side hustles and racha, the brighter the theme. Base is slate-950
   const getThemeClass = () => {
     if (racha >= 2 || totalSideHustle > 200) return 'bg-slate-950 selection:bg-emerald-500/30 ring-1 ring-inset ring-emerald-500/10';
     return 'bg-slate-950 selection:bg-indigo-500/30';
@@ -231,39 +299,60 @@ const App = () => {
         </div>
 
         <div className="space-y-3">
-          {tasks.map(task => (
-            <div
-              key={task.id}
-              onClick={() => toggleTask(quincena, task.id)}
-              className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${task.done
-                ? 'bg-slate-900/50 border-slate-800 opacity-50'
-                : task.type === 'income'
-                  ? 'bg-blue-900/20 border-blue-800/50 hover:bg-blue-900/40'
-                  : task.type === 'debt'
-                    ? 'bg-indigo-900/20 border-indigo-800/50 hover:bg-indigo-900/40'
-                    : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-                }`}
-            >
-              <div className="flex items-center gap-3">
-                {task.done ? (
-                  <CheckSquare className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-500 flex-shrink-0" />
-                )}
-                <span className={`text-sm font-medium ${task.done ? 'line-through text-slate-500' : 'text-slate-300'}`}>
-                  {task.text}
-                </span>
+          {tasks.map(task => {
+            const effectiveAmount = task.amount - (task.adelanto || 0);
+            const isSnowball = task.type === 'snowball' || task.type === 'debt-min';
+            return (
+              <div
+                key={task.id}
+                onClick={() => toggleTask(quincena, task.id)}
+                className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${task.done
+                  ? 'bg-slate-900/50 border-slate-800 opacity-50'
+                  : task.type === 'income'
+                    ? 'bg-blue-900/20 border-blue-800/50 hover:bg-blue-900/40'
+                    : isSnowball
+                      ? 'bg-indigo-900/20 border-indigo-800/50 hover:bg-indigo-900/40'
+                      : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  {task.done ? (
+                    <CheckSquare className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                  ) : (
+                    <Square className="w-5 h-5 text-slate-500 flex-shrink-0" />
+                  )}
+                  <span className={`text-sm font-medium ${task.done ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                    {task.isDynamic ? `${task.text} ${activeDebt.name}` : task.text}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {task.type !== 'income' && !task.done && (
+                    <button
+                      onClick={(e) => handleAdelanto(e, quincena, task.id)}
+                      className="text-slate-500 hover:text-emerald-400 p-1"
+                      title="Ingresar Adelanto / Deducción"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <div className="text-right">
+                    <span className={`text-sm font-bold flex items-center gap-1.5 ${task.done
+                      ? 'text-slate-500'
+                      : task.type === 'income'
+                        ? 'text-blue-400'
+                        : isSnowball ? 'text-indigo-400' : 'text-slate-300'
+                      }`}>
+                      {task.type === 'income' ? '+' : '-'}${effectiveAmount}
+                    </span>
+                    {task.adelanto > 0 && (
+                      <span className="text-[10px] text-emerald-500 block">Adelanto: ${task.adelanto}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <span className={`text-sm font-bold ${task.done
-                ? 'text-slate-500'
-                : task.type === 'income'
-                  ? 'text-blue-400'
-                  : task.type === 'debt' ? 'text-indigo-400' : 'text-slate-300'
-                }`}>
-                {task.type === 'income' ? '+' : '-'}${task.amount}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -272,7 +361,7 @@ const App = () => {
   return (
     <div className={`min-h-screen text-slate-300 font-sans pb-20 transition-colors duration-1000 ${getThemeClass()}`}>
 
-      {/* Header Premium */}
+      {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-6 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
@@ -285,7 +374,7 @@ const App = () => {
                 <Flame className="w-4 h-4 text-orange-500" /> Racha: {racha}
               </p>
 
-              {/* Achievement Badges Mini */}
+              {/* Achievement Badges */}
               <div className="flex gap-1">
                 {achievements.firstQPerfect && <span title="1er Paso: Quincena Invicta" className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Trophy className="w-3 h-3" /> 1er Logro</span>}
                 {achievements.debtDestroyer && <span title="Destructor: $500+ Extras" className="bg-indigo-500/20 text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Sparkles className="w-3 h-3" /> Destructor</span>}
@@ -293,7 +382,6 @@ const App = () => {
             </div>
           </div>
 
-          {/* Tabs Neumórficos Oscuros */}
           <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 w-full md:w-auto">
             <button
               onClick={() => setActiveTab('contable')}
@@ -316,16 +404,16 @@ const App = () => {
         {/* ================= VISTA: MI CONTABLE ================= */}
         {activeTab === 'contable' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-between items-center bg-emerald-900/20 border border-emerald-500/30 text-emerald-300 p-4 rounded-xl text-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start bg-indigo-900/20 border border-indigo-500/30 text-indigo-300 p-4 rounded-xl text-sm gap-4">
               <div className="flex items-start gap-3">
                 <Sparkles className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <p><strong>Operación Cero Deudas:</strong> Tu progreso se guarda automáticamente. Lo que sobre (Excedente) es gasolina para la Bola de Nieve.</p>
+                <p><strong>Meta Activa: {activeDebt.name}</strong>. Cierra el mes cuando ambas quincenas estén listas para abonar todo el progreso de excedentes a las deudas.</p>
               </div>
               <button
-                onClick={resetMonth}
-                className="flex items-center gap-2 px-3 py-1.5 ml-4 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors flex-shrink-0"
+                onClick={cerrarMes}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex-shrink-0 font-bold shadow-lg shadow-indigo-500/20"
               >
-                <RefreshCw className="w-4 h-4" /> Reset Mes
+                <AlertCircle className="w-4 h-4" /> Cerrar Mes y Abonar
               </button>
             </div>
 
@@ -334,29 +422,29 @@ const App = () => {
               {renderChecklist(q2Tasks, 2)}
             </div>
 
-            <div className="bg-indigo-900/20 border border-indigo-500/30 p-8 rounded-2xl text-center relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl"></div>
+            <div className="bg-slate-900 border border-emerald-500/20 p-8 rounded-2xl text-center relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
 
-              <div className="text-left flex-1 z-10">
-                <h3 className="text-indigo-300 font-bold mb-2 uppercase tracking-wider text-sm">Poder de Destrucción (Base + Extras)</h3>
-                <p className="text-5xl font-black text-indigo-400 tracking-tighter">
+              <div className="text-left flex-1 z-10 w-full">
+                <h3 className="text-emerald-300 font-bold mb-2 uppercase tracking-wider text-sm">Poder Máximo de Destrucción</h3>
+                <p className="text-4xl md:text-5xl font-black text-emerald-400 tracking-tighter">
                   ${currentDestructivePower}
                 </p>
-                <p className="text-sm text-indigo-300/70 mt-3">
-                  (Base Mínimos/Excedentes: ${baseDebtPayment}) + (Hustles Extras: ${totalSideHustle})
+                <p className="text-sm text-emerald-300/70 mt-3">
+                  Se destinará a: <strong className="text-emerald-300">{activeDebt.name}</strong> al cerrar el mes.
                 </p>
               </div>
 
               {/* Side Hustle Component */}
-              <div className="bg-slate-900 border border-indigo-500/20 p-4 rounded-xl w-full md:w-80 shadow-xl z-10 flex-shrink-0">
-                <h4 className="font-bold text-slate-200 mb-3 flex items-center gap-2 text-sm"><PlusCircle className="w-4 h-4 text-emerald-400" /> Agregar Ingreso Extra</h4>
+              <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl w-full md:w-80 shadow-xl z-10 flex-shrink-0">
+                <h4 className="font-bold text-slate-200 mb-3 flex items-center gap-2 text-sm"><PlusCircle className="w-4 h-4 text-emerald-400" /> Ingreso Extra (Hustle)</h4>
 
                 <form onSubmit={addSideHustle} className="space-y-2">
                   <input
                     type="text" required
                     value={newHustleDesc} onChange={e => setNewHustleDesc(e.target.value)}
-                    placeholder="Ej. Viaje Uber extra..."
-                    className="w-full bg-slate-800 text-sm border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                    placeholder="Ej. Viaje Uber, Venta..."
+                    className="w-full bg-slate-800 text-sm border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:ring-1 focus:ring-emerald-500 outline-none"
                   />
                   <div className="flex gap-2">
                     <span className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-slate-400 flex items-center justify-center">$</span>
@@ -364,11 +452,11 @@ const App = () => {
                       type="number" required min="1" step="0.01"
                       value={newHustleAmount} onChange={e => setNewHustleAmount(e.target.value)}
                       placeholder="Monto"
-                      className="w-full bg-slate-800 text-sm border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      className="w-full bg-slate-800 text-sm border-slate-700 rounded-lg p-2 text-white placeholder-slate-500 focus:ring-1 focus:ring-emerald-500 outline-none"
                     />
                   </div>
-                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg text-sm transition-colors mt-2">
-                    Abonar a Deuda
+                  <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm transition-colors mt-2">
+                    Sumar a Bola de Nieve
                   </button>
                 </form>
 
@@ -394,23 +482,47 @@ const App = () => {
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-            {/* NUEVO: Barra Progreso Global Dinamica */}
+            {/* Progreso Global Dinamica */}
             <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800 relative overflow-hidden">
               {achievements.debtDestroyer && <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl"></div>}
-              <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+              <h2 className="text-xl font-bold mb-2 text-white flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-yellow-500" />
-                Misión Principal Deuda: ${deudaTotalInicial.toLocaleString()}
+                Misión Principal Deuda: ${totalDebtBalance.toLocaleString()}
               </h2>
-              <div className="relative pt-1">
-                <div className="flex mb-2 items-center justify-between">
-                  <span className="text-xs font-bold uppercase rounded-full text-slate-400">Poder Mensual de Destrucción Actual</span>
-                  <span className="text-xs font-bold text-emerald-400">${currentDestructivePower} / Mes</span>
-                </div>
-                <div className="overflow-hidden h-3 mb-4 text-xs flex rounded-full bg-slate-800">
-                  {/* Visualización de qué tan rápido estamos pagando (es una simulación visual basada en el poder) */}
-                  <div style={{ width: `${Math.min((currentDestructivePower / 1500) * 100, 100)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-emerald-600 to-emerald-400"></div>
-                </div>
-                <p className="text-xs text-slate-500 text-right">*(Progreso visualizado en base al objetivo mensual de $1,500 de pagos)</p>
+              <p className="text-sm text-slate-400 mb-6 flex items-center gap-2">
+                Saldo original: <span className="line-through">${deudaTotalInicial.toLocaleString()}</span>
+              </p>
+
+              <div className="space-y-6">
+                {debts.map((debt, i) => {
+                  const isSaldada = debt.balance <= 0;
+                  const isActiva = activeDebt.id === debt.id;
+                  const pct = isSaldada ? 100 : Math.max(5, 100 - (debt.balance / debt.initial) * 100);
+
+                  return (
+                    <div key={debt.id} className="relative">
+                      <div className="flex justify-between mb-2">
+                        <span className={`font-semibold text-sm ${isSaldada ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                          {i + 1}. {debt.name} (${debt.balance.toLocaleString()})
+                        </span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${isSaldada ? 'bg-emerald-500/10 text-emerald-500' :
+                            isActiva ? 'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/50' :
+                              'bg-slate-800 text-slate-400'
+                          }`}>
+                          {isSaldada ? '¡Saldada!' : isActiva ? 'Objetivo Actual' : 'En Espera'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
+                        <div className={`h-full transition-all duration-1000 ${isSaldada ? 'bg-emerald-500' :
+                            isActiva ? 'bg-gradient-to-r from-indigo-600 to-indigo-400 relative' :
+                              'bg-slate-600'
+                          }`} style={{ width: `${pct}%` }}>
+                          {isActiva && <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 animate-pulse rounded-full blur-sm"></div>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </section>
 
@@ -424,66 +536,23 @@ const App = () => {
                 Automático Walmart ($340) + Manual ($160) = $500/mes.
               </p>
               <div className="w-full bg-slate-800 rounded-full h-3">
-                {/* Simulando progreso a Julio */}
                 <div className="bg-blue-500 h-3 rounded-full relative" style={{ width: '60%' }}>
                   <div className="absolute right-0 top-0 bottom-0 w-2 bg-white/30 rounded-full animate-pulse"></div>
                 </div>
               </div>
             </section>
 
-            {/* Proyección Bola de Nieve */}
-            <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-              <h2 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-                <TrendingDown className="w-5 h-5 text-indigo-400" />
-                Cronograma Bola de Nieve
-              </h2>
-              <div className="space-y-6">
-                <div className="relative">
-                  <div className="flex justify-between mb-2">
-                    <span className="font-semibold text-sm text-slate-300">1. Tarjeta ($2,500)</span>
-                    <span className="text-sm font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-                      {totalSideHustle > 500 ? '¡Adelantado a Abril!' : 'Aprox. Mayo'}
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-800 rounded-full h-2">
-                    <div className="bg-emerald-500 h-2 rounded-full transition-all duration-1000" style={{ width: totalSideHustle > 500 ? '100%' : '80%' }}></div>
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <div className="flex justify-between mb-2">
-                    <span className="font-semibold text-sm text-slate-300">2. Préstamo Personal ($3,120)</span>
-                    <span className="text-sm font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Aprox. Julio</span>
-                  </div>
-                  <div className="w-full bg-slate-800 rounded-full h-2">
-                    <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '40%' }}></div>
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <div className="flex justify-between mb-2">
-                    <span className="font-semibold text-sm text-slate-300">3. Préstamo Estudiantil ($11,800)</span>
-                    <span className="text-sm font-bold text-slate-400 bg-slate-700 px-2 py-0.5 rounded">Mayo 2027</span>
-                  </div>
-                  <div className="w-full bg-slate-800 rounded-full h-2">
-                    <div className="bg-slate-600 h-2 rounded-full" style={{ width: '10%' }}></div>
-                  </div>
-                </div>
-              </div>
-            </section>
           </div>
         )}
 
       </main>
 
-      {/* Footer / Autor */}
       <footer className="max-w-4xl mx-auto p-6 mt-8 text-center text-slate-500 text-sm">
         <p>
           by fernely 2026 • <a href="https://fernelydev.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 font-medium transition-colors">fernelydev.com</a>
         </p>
       </footer>
 
-      {/* Global generic styling applied to document via Tailwind arbitrary values below */}
       <style dangerouslySetInnerHTML={{
         __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }

@@ -4,9 +4,11 @@ import {
   Zap, Wifi, Utensils, Scissors, Heart, Gift,
   Target, DollarSign, Calendar, LayoutDashboard, CheckSquare, Square,
   Trophy, Flame, Sparkles, Shield, RefreshCw, PlusCircle, AlertCircle,
-  Edit3, ArrowRight
+  Edit3, ArrowRight, History, Download, PiggyBank, Briefcase, CreditCard,
+  PieChart as PieChartIcon, Activity
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
 
 // --- Default Data ---
 const DEFAULT_INCOMES = [
@@ -70,9 +72,15 @@ const DEFAULT_Q2 = [
 ];
 
 const DEFAULT_DEBTS = [
-  { id: 'tarjeta', name: 'Tarjeta', balance: 2500, initial: 2500 },
-  { id: 'personal', name: 'Préstamo Personal', balance: 3120, initial: 3120 },
-  { id: 'estudiantil', name: 'Préstamo Estudiantil', balance: 11800, initial: 11800 },
+  { id: 'tarjeta', name: 'Tarjeta', balance: 2500, initial: 2500, apr: 24, dueDay: 15 },
+  { id: 'personal', name: 'Préstamo Personal', balance: 3120, initial: 3120, apr: 12, dueDay: 5 },
+  { id: 'estudiantil', name: 'Préstamo Estudiantil', balance: 11800, initial: 11800, apr: 6, dueDay: 28 },
+];
+
+const DEFAULT_WALLETS = [
+  { id: 'cheques', name: 'Cuenta Cheques', balance: 1200, icon: 'Briefcase' },
+  { id: 'ahorros', name: 'Ahorros', balance: 800, icon: 'PiggyBank' },
+  { id: 'efectivo', name: 'Efectivo', balance: 150, icon: 'Wallet' },
 ];
 
 // --- Helper Functions for Local Storage ---
@@ -108,8 +116,16 @@ const App = () => {
   // Achievements
   const [achievements, setAchievements] = useState(() => loadData('meta2026_achievements', {
     firstQPerfect: false,
-    debtDestroyer: false
+    debtDestroyer: false,
+    saverMonth: false,
+    streak3Months: false
   }));
+
+  // Nuevos estados para V3
+  const [history, setHistory] = useState(() => loadData('meta2026_history', []));
+  const [wallets, setWallets] = useState(() => loadData('meta2026_wallets', DEFAULT_WALLETS));
+  const [whatIfExtra, setWhatIfExtra] = useState(0); // Para el simulador
+  const [whatIfInput, setWhatIfInput] = useState('');
 
   // Save to local storage whenever state changes
   useEffect(() => { localStorage.setItem('meta2026_racha', JSON.stringify(racha)); }, [racha]);
@@ -120,6 +136,8 @@ const App = () => {
   useEffect(() => { localStorage.setItem('meta2026_debts_v2', JSON.stringify(debts)); }, [debts]);
   useEffect(() => { localStorage.setItem('meta2026_sideHustles', JSON.stringify(sideHustles)); }, [sideHustles]);
   useEffect(() => { localStorage.setItem('meta2026_achievements', JSON.stringify(achievements)); }, [achievements]);
+  useEffect(() => { localStorage.setItem('meta2026_history', JSON.stringify(history)); }, [history]);
+  useEffect(() => { localStorage.setItem('meta2026_wallets', JSON.stringify(wallets)); }, [wallets]);
 
 
   // ================= CALCS =================
@@ -144,20 +162,28 @@ const App = () => {
 
   const poderTotalDeudas = totalMinimosOtras + poderAtaqueActiva;
 
-  const payoffDatesMemo = React.useMemo(() => {
+  const calculatePayoffDates = (baseDebts, extraSimulator = 0) => {
     let result = {};
-    let tempDebts = debts.map(d => ({ ...d }));
+    let tempDebts = baseDebts.map(d => ({ ...d }));
     let monthsElapsed = 0;
 
     while (tempDebts.some(d => d.balance > 0) && monthsElapsed < 240) {
       monthsElapsed++;
+      // Simulamos los pagos en base a compromisos actuales
       let snowball = (monthsElapsed === 1) ? totalSideHustle : 0;
+      snowball += extraSimulator; // Inyectar simulador
+
       [...q1Tasks, ...q2Tasks].forEach(t => { if (t.type === 'snowball') snowball += t.amount; });
 
       tempDebts.forEach(d => {
         if (d.balance > 0) {
+          // Add Interest calculation (compound approximation per month)
+          const interestMultiplier = d.apr ? (d.apr / 100 / 12) : 0;
+          d.balance += d.balance * interestMultiplier;
+
           let minPayment = 0;
           [...q1Tasks, ...q2Tasks].forEach(t => { if (t.type === 'debt-min' && t.debtId === d.id) minPayment += t.amount; });
+
           if (minPayment > d.balance) {
             snowball += (minPayment - d.balance);
             d.balance = 0;
@@ -184,14 +210,17 @@ const App = () => {
         if (d.balance === 0 && !result[d.id]) {
           const dObj = new Date();
           dObj.setMonth(dObj.getMonth() + monthsElapsed);
-          const mesNum = dObj.getMonth() + 1; // 1-12
+          const mesNum = dObj.getMonth() + 1;
           const year = dObj.getFullYear();
           result[d.id] = `${mesNum < 10 ? '0' + mesNum : mesNum}/${year}`;
         }
       });
     }
     return result;
-  }, [debts, q1Tasks, q2Tasks, totalSideHustle]);
+  };
+
+  const payoffDatesMemo = React.useMemo(() => calculatePayoffDates(debts, 0), [debts, q1Tasks, q2Tasks, totalSideHustle]);
+  const whatIfDatesMemo = React.useMemo(() => calculatePayoffDates(debts, whatIfExtra), [debts, q1Tasks, q2Tasks, totalSideHustle, whatIfExtra]);
 
   // Check achievements
   useEffect(() => {
@@ -211,8 +240,13 @@ const App = () => {
       changed = true;
     }
 
+    if (racha >= 6 && !newAchs.streak3Months) {
+      newAchs.streak3Months = true; // 3 meses = 6 quincenas
+      changed = true;
+    }
+
     if (changed) setAchievements(newAchs);
-  }, [q1Tasks, q2Tasks, totalSideHustle, achievements]);
+  }, [q1Tasks, q2Tasks, totalSideHustle, achievements, racha]);
 
 
   // ================= ACTIONS =================
@@ -273,12 +307,28 @@ const App = () => {
     let newDebts = [...debts];
     const allTasks = [...q1Tasks, ...q2Tasks];
 
+    // Snapshot variables para el historial
+    let principalPagado = 0;
+    let interesPagado = 0;
+
+    // 0. Aplicar interes compuesto
+    newDebts = newDebts.map(d => {
+      if (d.balance > 0) {
+        const interesMonto = d.balance * ((d.apr || 0) / 100 / 12);
+        interesPagado += interesMonto;
+        return { ...d, balance: d.balance + interesMonto };
+      }
+      return d;
+    });
+
     // 1. Aplicar pagos normales y mínimos
     allTasks.forEach(t => {
       if (t.done && t.type === 'debt-min' && t.debtId) {
         const dIndex = newDebts.findIndex(d => d.id === t.debtId);
-        if (dIndex !== -1) {
-          newDebts[dIndex].balance = Math.max(0, newDebts[dIndex].balance - (t.amount - (t.adelanto || 0)));
+        if (dIndex !== -1 && newDebts[dIndex].balance > 0) {
+          const pagoEfectivo = (t.amount - (t.adelanto || 0));
+          principalPagado += pagoEfectivo;
+          newDebts[dIndex].balance = Math.max(0, newDebts[dIndex].balance - pagoEfectivo);
         }
       }
     });
@@ -287,9 +337,13 @@ const App = () => {
     let snowballMonto = totalSideHustle;
     allTasks.forEach(t => {
       if (t.done && t.type === 'snowball') {
-        snowballMonto += (t.amount - (t.adelanto || 0));
+        const pagoEfectivo = (t.amount - (t.adelanto || 0));
+        snowballMonto += pagoEfectivo;
       }
     });
+
+    // Añadir lo que sobró directo a registro principal pagado total (simplificado)
+    principalPagado += snowballMonto;
 
     // 3. Aplicar bola de nieve en cascada
     for (let i = 0; i < newDebts.length; i++) {
@@ -305,13 +359,26 @@ const App = () => {
       }
     }
 
+    // 4. Guardar Historial del mes
+    const montoTotalResta = newDebts.reduce((acc, curr) => acc + curr.balance, 0);
+    const snapshotObj = {
+      id: Date.now(),
+      fecha: new Date().toLocaleDateString(),
+      totalPagado: principalPagado,
+      totalInteres: interesPagado,
+      sideHustlesMonto: totalSideHustle,
+      deudaRestante: montoTotalResta,
+      detalleDeudas: newDebts.map(d => ({ nombre: d.name, balance: d.balance }))
+    };
+    setHistory([snapshotObj, ...history]);
+
     setDebts(newDebts);
     setQ1Tasks(q1Tasks.map(t => ({ ...t, done: false, adelanto: 0 })));
     setQ2Tasks(q2Tasks.map(t => ({ ...t, done: false, adelanto: 0 })));
     setSideHustles([]);
 
     triggerConfetti();
-    alert("¡Mes cerrado exitosamente! Deudas actualizadas.");
+    alert("¡Mes cerrado exitosamente! El historial y las deudas han sido actualizadas.");
   };
 
   const addSideHustle = (e) => {
@@ -375,7 +442,9 @@ const App = () => {
                     ? 'bg-blue-900/20 border-blue-800/50 hover:bg-blue-900/40'
                     : isSnowball
                       ? 'bg-indigo-900/20 border-indigo-800/50 hover:bg-indigo-900/40'
-                      : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                      : (task.type === 'variable' && (task.adelanto || 0) > task.amount)
+                        ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                        : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
                   }`}
               >
                 <div className="flex items-center gap-3">
@@ -409,7 +478,9 @@ const App = () => {
                       {task.type === 'income' ? '+' : '-'}${effectiveAmount}
                     </span>
                     {task.adelanto > 0 && (
-                      <span className="text-[10px] text-emerald-500 block">Adelanto: ${task.adelanto}</span>
+                      <span className={`text-[10px] mt-0.5 block font-bold ${task.adelanto > task.amount ? 'text-red-400' : 'text-emerald-500'}`}>
+                        {task.adelanto > task.amount ? '¡Sobregiro!: ' : 'Adelanto: '}${task.adelanto}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -446,19 +517,20 @@ const App = () => {
           </div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 w-auto">
-            <button
-              onClick={() => setActiveTab('contable')}
-              className={`py-2 px-6 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'contable' ? 'bg-emerald-500/20 text-emerald-400 shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'}`}
-            >
-              <CheckSquare className="w-4 h-4" /> Contable
-            </button>
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`py-2 px-6 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/20 text-emerald-400 shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'}`}
-            >
-              <LayoutDashboard className="w-4 h-4" /> Dashboard
-            </button>
+          <div className="hidden md:flex bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 w-auto gap-1">
+            {['contable', 'dashboard', 'historial', 'bolsillos'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`py-2 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all capitalize ${activeTab === tab ? 'bg-emerald-500/20 text-emerald-400 shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'}`}
+              >
+                {tab === 'contable' && <CheckSquare className="w-4 h-4" />}
+                {tab === 'dashboard' && <LayoutDashboard className="w-4 h-4" />}
+                {tab === 'historial' && <History className="w-4 h-4" />}
+                {tab === 'bolsillos' && <Briefcase className="w-4 h-4" />}
+                <span className="hidden lg:inline">{tab}</span>
+              </button>
+            ))}
           </div>
         </div>
       </header>
@@ -622,6 +694,255 @@ const App = () => {
               </div>
             </section>
 
+            {/* Calendario de Compromisos (NUEVO) */}
+            <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+              <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-emerald-400" />
+                Vencimientos del Mes
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {debts.map(d => (
+                  <div key={'cal-' + d.id} className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
+                    <span className="text-2xl font-black text-emerald-400">{d.dueDay || '--'}</span>
+                    <span className="text-xs text-slate-400 mt-1">{d.name}</span>
+                  </div>
+                ))}
+                <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-black text-rose-400">01</span>
+                  <span className="text-xs text-slate-400 mt-1">Casa / Renta</span>
+                </div>
+                <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-black text-blue-400">15</span>
+                  <span className="text-xs text-slate-400 mt-1">Pago Carro</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Gráfica de Distribución (NUEVO) */}
+            <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
+              <h2 className="text-xl font-bold mb-4 text-white flex items-center justify-center gap-2">
+                <PieChartIcon className="w-5 h-5 text-indigo-400" />
+                Distribución de Presupuesto (Base)
+              </h2>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={[
+                      { name: 'Gastos Fijos', value: expenses.reduce((a, c) => a + c.amount, 0) },
+                      { name: 'Abono Deudas', value: totalMinimosOtras + poderAtaqueActiva },
+                      { name: 'Variables/Ahorro', value: Math.max(0, totalIncome - expenses.reduce((a, c) => a + c.amount, 0) - (totalMinimosOtras + poderAtaqueActiva)) }
+                    ]} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#10b981" />
+                      <Cell fill="#f59e0b" />
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} />
+                    <Legend wrapperStyle={{ fontSize: '12px', color: '#cbd5e1' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            {/* Rastreador Fondo de Emergencia (NUEVO) */}
+            {(() => {
+              const costoVidaMes = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+              const metaEmergencia3Meses = costoVidaMes * 3;
+              const fondoActualVal = wallets.find(w => w.id === 'ahorros')?.balance || 0;
+              const pctEmergencia = Math.min(100, (fondoActualVal / metaEmergencia3Meses) * 100);
+
+              return (
+                <section className="bg-gradient-to-br from-indigo-900/40 to-slate-900 p-6 rounded-2xl border border-indigo-800/50">
+                  <h2 className="text-xl font-bold mb-2 text-white flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-indigo-400" />
+                    Fondo de Emergencia (3 Meses)
+                  </h2>
+                  <div className="flex justify-between text-sm text-indigo-200/70 mb-4">
+                    <span>Actual: ${fondoActualVal.toLocaleString()}</span>
+                    <span>Meta: ${metaEmergencia3Meses.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden border border-slate-700">
+                    <div className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full relative transition-all duration-1000" style={{ width: `${pctEmergencia}%` }}>
+                      <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 animate-pulse rounded-full blur-sm"></div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
+
+            {/* Simulador WhatIf (NUEVO) */}
+            <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800 relative z-10">
+              <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                <Activity className="w-5 h-5 text-fuchsia-400" />
+                Máquina del Tiempo (Simulador)
+              </h2>
+              <p className="text-sm text-slate-400 mb-4">¿Qué pasaría si añades un extra constante a tus pagos mensuales?</p>
+
+              <div className="flex gap-2 mb-6">
+                <span className="bg-slate-800 border border-slate-700 rounded-xl px-4 text-slate-400 flex items-center justify-center font-bold">$</span>
+                <input
+                  type="number"
+                  placeholder="Inyección extra recurrente"
+                  value={whatIfInput}
+                  onChange={(e) => setWhatIfInput(e.target.value)}
+                  className="flex-1 bg-slate-800 text-sm border-slate-700 rounded-xl p-3 text-white placeholder-slate-500 focus:ring-1 focus:ring-fuchsia-500 outline-none transition-all font-mono"
+                />
+                <button
+                  onClick={() => setWhatIfExtra(Number(whatIfInput) || 0)}
+                  className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-[0_0_15px_rgba(192,38,211,0.3)]"
+                >
+                  Simular
+                </button>
+              </div>
+
+              {whatIfExtra > 0 && (
+                <div className="space-y-3 animate-in fade-in zoom-in duration-300">
+                  <h3 className="text-sm font-bold text-fuchsia-300">Nuevas Fechas Estimadas (vs Actual):</h3>
+                  {debts.map(d => {
+                    const actualDate = payoffDatesMemo[d.id] || "---";
+                    const newDate = whatIfDatesMemo[d.id] || "---";
+                    if (d.balance <= 0) return null;
+                    return (
+                      <div key={'sim-' + d.id} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                        <span className="text-sm text-slate-200 font-medium">{d.name}</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-slate-500 line-through">{actualDate}</span>
+                          <ArrowRight className="w-4 h-4 text-fuchsia-500" />
+                          <span className="text-fuchsia-400 font-bold bg-fuchsia-500/10 px-2 py-1 rounded">{newDate}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+
+          </div>
+        )}
+
+        {/* ================= VISTA: HISTORIAL ================= */}
+        {activeTab === 'historial' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <History className="w-6 h-6 text-indigo-400" /> Archivo Mensual
+              </h2>
+              <button
+                onClick={() => {
+                  if (history.length === 0) return alert('No hay historial para exportar.');
+                  const headers = "ID,Fecha,Total_Abonado_Principal,Intereses_Pagados,SideHustles,Deuda_Restante\n";
+                  const rows = history.map(h => `${h.id},${h.fecha},${h.totalPagado},${h.totalInteres.toFixed(2)},${h.sideHustlesMonto},${h.deudaRestante}`).join("\n");
+                  const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", url);
+                  link.setAttribute("download", "historial_financiero_2026.csv");
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors text-sm font-bold border border-slate-700 shadow-lg"
+              >
+                <Download className="w-4 h-4" /> Exportar CSV
+              </button>
+            </div>
+
+            {history.length === 0 ? (
+              <div className="text-center py-20 bg-slate-900 border border-slate-800 rounded-3xl">
+                <History className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-slate-400">Sin historial aún</h3>
+                <p className="text-slate-500 mt-2">Cierra tu primer mes para ver los registros aquí.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {history.map(record => (
+                  <div key={record.id} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl hover:border-indigo-500/30 transition-colors shadow-lg">
+                    <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+                      <span className="font-bold text-white flex items-center gap-2"><Calendar className="w-4 h-4 text-emerald-400" /> {record.fecha}</span>
+                      <span className="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full font-mono">Cierre: #{record.id.toString().slice(-4)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                      <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
+                        <p className="text-slate-500 text-xs mb-1">Abonado a Capital</p>
+                        <p className="text-emerald-400 font-bold text-lg">${record.totalPagado.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
+                        <p className="text-slate-500 text-xs mb-1">Interés Generado</p>
+                        <p className="text-red-400 font-bold text-lg">${record.totalInteres.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
+                        <p className="text-slate-500 text-xs mb-1">Side Hustles Mes</p>
+                        <p className="text-indigo-400 font-bold text-lg">${record.sideHustlesMonto.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
+                        <p className="text-slate-500 text-xs mb-1">Deuda Restante</p>
+                        <p className="text-slate-300 font-bold text-lg">${record.deudaRestante.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= VISTA: BOLSILLOS (WALLETS) ================= */}
+        {activeTab === 'bolsillos' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-6">
+              <Briefcase className="w-6 h-6 text-emerald-400" /> Control de Cuentas
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {wallets.map((wallet, idx) => (
+                <div key={wallet.id} className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 p-6 rounded-3xl relative overflow-hidden group hover:border-emerald-500/30 transition-all shadow-xl">
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-slate-800/50 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors"></div>
+
+                  <div className="flex justify-between items-start mb-4 relative z-10">
+                    <h3 className="font-bold text-slate-300 text-lg flex items-center gap-2">
+                      {wallet.id === 'cheques' && <Briefcase className="w-5 h-5 text-blue-400" />}
+                      {wallet.id === 'ahorros' && <PiggyBank className="w-5 h-5 text-fuchsia-400" />}
+                      {wallet.id === 'efectivo' && <Wallet className="w-5 h-5 text-emerald-400" />}
+                      {wallet.name}
+                    </h3>
+                  </div>
+
+                  <div className="mb-6 relative z-10">
+                    <p className="text-4xl font-black text-white tracking-tighter shadow-black/50 drop-shadow-md">
+                      ${wallet.balance.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 relative z-10">
+                    <button
+                      onClick={() => {
+                        const val = window.prompt("Ingresar monto a SUMAR a " + wallet.name + ":", "0");
+                        if (val && !isNaN(val)) {
+                          const newWallets = [...wallets];
+                          newWallets[idx].balance += parseFloat(val);
+                          setWallets(newWallets);
+                        }
+                      }}
+                      className="flex-1 bg-slate-800 hover:bg-emerald-500/20 text-emerald-400 font-bold py-2 rounded-xl transition-all border border-slate-700 hover:border-emerald-500/50"
+                    >+</button>
+                    <button
+                      onClick={() => {
+                        const val = window.prompt("Ingresar monto a RESTAR a " + wallet.name + ":", "0");
+                        if (val && !isNaN(val)) {
+                          const newWallets = [...wallets];
+                          newWallets[idx].balance = Math.max(0, newWallets[idx].balance - parseFloat(val));
+                          setWallets(newWallets);
+                        }
+                      }}
+                      className="flex-1 bg-slate-800 hover:bg-red-500/20 text-red-400 font-bold py-2 rounded-xl transition-all border border-slate-700 hover:border-red-500/50"
+                    >-</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl text-sm text-slate-400 flex items-start gap-3 mt-6">
+              <AlertCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+              <p>Tu Liquidez Total entre todas las cuentas actuales es de <strong className="text-white">${wallets.reduce((a, c) => a + c.balance, 0).toLocaleString()}</strong>. Recuerda usar el simulador de deudas en el Dashboard si decides inyectar dinero extra proveniente de tus ahorros a las deudas.</p>
+            </div>
           </div>
         )}
 
@@ -634,20 +955,21 @@ const App = () => {
       </footer>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-4">
-        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl flex p-1.5 shadow-2xl">
-          <button
-            onClick={() => setActiveTab('contable')}
-            className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'contable' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <CheckSquare className="w-5 h-5" /> Contable
-          </button>
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <LayoutDashboard className="w-5 h-5" /> Dashboard
-          </button>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-2 pb-5 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/70">
+        <div className="flex justify-around items-center">
+          {['contable', 'dashboard', 'historial', 'bolsillos'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex flex-col items-center justify-center w-full py-2 gap-1 rounded-xl transition-all ${activeTab === tab ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500'}`}
+            >
+              {tab === 'contable' && <CheckSquare className="w-5 h-5" />}
+              {tab === 'dashboard' && <LayoutDashboard className="w-5 h-5" />}
+              {tab === 'historial' && <History className="w-5 h-5" />}
+              {tab === 'bolsillos' && <Briefcase className="w-5 h-5" />}
+              <span className="text-[10px] font-bold capitalize">{tab}</span>
+            </button>
+          ))}
         </div>
       </div>
 

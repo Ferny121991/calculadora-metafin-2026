@@ -12,28 +12,28 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Ba
 
 // --- Default Data ---
 const DEFAULT_INCOMES = [
-  { id: 1, name: 'Walmart (Neto post-ahorro)', amount: 2460, icon: 'Wallet' },
-  { id: 2, name: 'Ingreso Extra Fijo', amount: 640, icon: 'DollarSign' },
-  { id: 3, name: 'Uber (Fines de semana)', amount: 1120, icon: 'Car' },
+  { id: 1, name: 'Walmart (Neto post-ahorro)', amount: 2460, icon: 'Wallet', dueDay: 15 },
+  { id: 2, name: 'Ingreso Extra Fijo', amount: 640, icon: 'DollarSign', dueDay: 1 },
+  { id: 3, name: 'Uber (Fines de semana)', amount: 1120, icon: 'Car', dueDay: 28 },
 ];
 
 const DEFAULT_EXPENSES = [
-  { id: 1, name: 'Casa', amount: 800, icon: 'Home' },
-  { id: 2, name: 'Pago Carro', amount: 550, icon: 'Car' },
-  { id: 3, name: 'Seguro Carro', amount: 220, icon: 'Car' },
-  { id: 4, name: 'Diezmo', amount: 260, icon: 'Heart' },
-  { id: 5, name: 'Gasolina', amount: 200, icon: 'Zap' },
-  { id: 6, name: 'Luz', amount: 90, icon: 'Zap' },
-  { id: 7, name: 'Internet', amount: 70, icon: 'Wifi' },
-  { id: 8, name: 'Teléfono', amount: 60, icon: 'Smartphone' },
-  { id: 9, name: 'Suscripciones (Hosting, IA)', amount: 60, icon: 'Wifi' },
-  { id: 10, name: 'Comida ($75 quincenal)', amount: 150, icon: 'Utensils' },
-  { id: 11, name: 'Para Sheila', amount: 280, icon: 'Gift' },
-  { id: 12, name: 'Recortes', amount: 90, icon: 'Scissors' },
-  { id: 13, name: 'Gustos Personales', amount: 80, icon: 'Wallet' },
-  { id: 14, name: 'Mínimo Préstamo Personal', amount: 165, icon: 'TrendingDown' },
-  { id: 15, name: 'Mínimo Préstamo Estudiantil', amount: 135, icon: 'TrendingDown' },
-  { id: 16, name: 'Fondo de Emergencia', amount: 200, icon: 'Shield' },
+  { id: 1, name: 'Casa', amount: 800, icon: 'Home', dueDay: 1 },
+  { id: 2, name: 'Pago Carro', amount: 550, icon: 'Car', dueDay: 15 },
+  { id: 3, name: 'Seguro Carro', amount: 220, icon: 'Car', dueDay: 18 },
+  { id: 4, name: 'Diezmo', amount: 260, icon: 'Heart', dueDay: 15 },
+  { id: 5, name: 'Gasolina', amount: 200, icon: 'Zap', dueDay: 1 },
+  { id: 6, name: 'Luz', amount: 90, icon: 'Zap', dueDay: 10 },
+  { id: 7, name: 'Internet', amount: 70, icon: 'Wifi', dueDay: 5 },
+  { id: 8, name: 'Teléfono', amount: 60, icon: 'Smartphone', dueDay: 12 },
+  { id: 9, name: 'Suscripciones (Hosting, IA)', amount: 60, icon: 'Wifi', dueDay: 2 },
+  { id: 10, name: 'Comida ($75 quincenal)', amount: 150, icon: 'Utensils', dueDay: 15 },
+  { id: 11, name: 'Para Sheila', amount: 280, icon: 'Gift', dueDay: 15 },
+  { id: 12, name: 'Recortes', amount: 90, icon: 'Scissors', dueDay: 15 },
+  { id: 13, name: 'Gustos Personales', amount: 80, icon: 'Wallet', dueDay: 1 },
+  { id: 14, name: 'Mínimo Préstamo Personal', amount: 165, icon: 'TrendingDown', dueDay: 5 },
+  { id: 15, name: 'Mínimo Préstamo Estudiantil', amount: 135, icon: 'TrendingDown', dueDay: 28 },
+  { id: 16, name: 'Fondo de Emergencia', amount: 200, icon: 'Shield', dueDay: 1 },
 ];
 
 const DEFAULT_Q1 = [
@@ -400,6 +400,29 @@ const App = () => {
     setSideHustles(sideHustles.filter(s => s.id !== id));
   }
 
+  const updateDueDay = (type, id) => {
+    let item, val;
+    let list, setList;
+    if (type === 'income') {
+      item = incomes.find(i => i.id === id); list = incomes; setList = setIncomes;
+    } else if (type === 'expense') {
+      item = expenses.find(e => e.id === id); list = expenses; setList = setExpenses;
+    } else if (type === 'debt') {
+      item = debts.find(d => d.id === id); list = debts; setList = setDebts;
+    }
+
+    if (item) {
+      val = window.prompt(`Actualizar fecha/día para ${item.name} (Ej: '15', 'Viernes', 'Semanal', '12 y 26'):`, item.dueDay || '');
+      if (val !== null) {
+        if (val.trim() !== '') {
+          setList(list.map(x => x.id === id ? { ...x, dueDay: val.trim() } : x));
+        } else {
+          setList(list.map(x => x.id === id ? { ...x, dueDay: '' } : x));
+        }
+      }
+    }
+  };
+
 
   // ================= UI RENDERERS =================
 
@@ -518,7 +541,7 @@ const App = () => {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 w-auto gap-1">
-            {['contable', 'dashboard', 'historial', 'bolsillos'].map((tab) => (
+            {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -526,6 +549,7 @@ const App = () => {
               >
                 {tab === 'contable' && <CheckSquare className="w-4 h-4" />}
                 {tab === 'dashboard' && <LayoutDashboard className="w-4 h-4" />}
+                {tab === 'fechas' && <Calendar className="w-4 h-4" />}
                 {tab === 'historial' && <History className="w-4 h-4" />}
                 {tab === 'bolsillos' && <Briefcase className="w-4 h-4" />}
                 <span className="hidden lg:inline">{tab}</span>
@@ -694,28 +718,21 @@ const App = () => {
               </div>
             </section>
 
-            {/* Calendario de Compromisos (NUEVO) */}
+            {/* Calendario Resumido (Actualizado a enlazar Tab) */}
             <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-              <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-emerald-400" />
-                Vencimientos del Mes
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {debts.map(d => (
-                  <div key={'cal-' + d.id} className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
-                    <span className="text-2xl font-black text-emerald-400">{d.dueDay || '--'}</span>
-                    <span className="text-xs text-slate-400 mt-1">{d.name}</span>
-                  </div>
-                ))}
-                <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-black text-rose-400">01</span>
-                  <span className="text-xs text-slate-400 mt-1">Casa / Renta</span>
-                </div>
-                <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-black text-blue-400">15</span>
-                  <span className="text-xs text-slate-400 mt-1">Pago Carro</span>
-                </div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-emerald-400" />
+                  Próximos Vencimientos
+                </h2>
+                <button
+                  onClick={() => setActiveTab('fechas')}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition"
+                >
+                  Ver Calendario Completo
+                </button>
               </div>
+              <p className="text-sm text-slate-400">Dirígete a la pestaña "Fechas" en el menú para configurar todos los días de cobro y pagos.</p>
             </section>
 
             {/* Gráfica de Distribución (NUEVO) */}
@@ -816,6 +833,137 @@ const App = () => {
               )}
             </section>
 
+          </div>
+        )}
+
+        {/* ================= VISTA: FECHAS / CALENDARIO ================= */}
+        {activeTab === 'fechas' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">
+              <Calendar className="w-6 h-6 text-indigo-400" /> Calendario Maestro
+            </h2>
+            <p className="text-sm text-slate-400 mb-6">Administra qué día del mes caen tus ingresos y pagos para organizar mejor el cash-flow.</p>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+              {(() => {
+                // Combinar todos los items que tienen fecha
+                const allItems = [
+                  ...incomes.map(i => ({ ...i, tipo: 'income', label: i.name })),
+                  ...debts.map(d => ({ ...d, tipo: 'debt', label: d.name })),
+                  ...expenses.map(e => ({ ...e, tipo: 'expense', label: e.name }))
+                ];
+
+                // Agrupar
+                let groupedNumbers = {};
+                let textGroups = {};
+                let withoutDate = [];
+
+                allItems.forEach(item => {
+                  const val = item.dueDay;
+                  if (val === undefined || val === null || val.toString().trim() === '') {
+                    withoutDate.push(item);
+                    return;
+                  }
+
+                  const numDay = parseInt(val);
+                  // Si es puramente un número del 1 al 31
+                  if (!isNaN(numDay) && numDay > 0 && numDay <= 31 && numDay.toString() === val.toString().trim()) {
+                    if (!groupedNumbers[numDay]) groupedNumbers[numDay] = [];
+                    groupedNumbers[numDay].push(item);
+                  } else {
+                    // Es un texto libre, ej: 'Viernes', 'Semanal', '12 y 26'
+                    const textKey = val.toString().trim();
+                    if (!textGroups[textKey]) textGroups[textKey] = [];
+                    textGroups[textKey].push(item);
+                  }
+                });
+
+                return (
+                  <div className="p-4 md:p-6 space-y-6">
+                    {/* Items sin fecha */}
+                    {withoutDate.length > 0 && (
+                      <div className="bg-red-900/10 border border-red-500/20 p-4 rounded-xl">
+                        <h3 className="text-red-400 font-bold mb-3 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Sin día asignado</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {withoutDate.map(item => (
+                            <button key={`no-date-${item.id}`} onClick={() => updateDueDay(item.tipo, item.id)} className="text-left bg-slate-950 border border-slate-800 p-3 rounded-lg hover:border-slate-600 transition group flex justify-between items-center">
+                              <span className="text-sm text-slate-300">{item.label}</span>
+                              <Edit3 className="w-4 h-4 text-slate-600 group-hover:text-emerald-400" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timeline Flexible/Textual */}
+                    {Object.keys(textGroups).length > 0 && Object.keys(textGroups).sort().map(texto => (
+                      <div key={`text-${texto}`} className="flex flex-col md:flex-row gap-4 items-start relative border-l-2 border-indigo-500/50 ml-3 pl-6 py-2 mb-4">
+                        <div className="absolute -left-[30px] top-4 rounded-full bg-slate-900 border-2 border-indigo-500/50 px-3 py-1 flex items-center justify-center font-bold text-indigo-300 text-xs shadow-lg z-10">
+                          {texto}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full ml-4 md:ml-12">
+                          {textGroups[texto].map(item => (
+                            <button
+                              key={`item-${item.id}`}
+                              onClick={() => updateDueDay(item.tipo, item.id)}
+                              className={`text-left p-3 rounded-xl border relative overflow-hidden group transition hover:scale-[1.02] ${item.tipo === 'income' ? 'bg-emerald-900/10 border-emerald-500/30' :
+                                  item.tipo === 'debt' ? 'bg-indigo-900/10 border-indigo-500/30' :
+                                    'bg-slate-800/50 border-slate-700/50'
+                                }`}
+                            >
+                              <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition">
+                                <Edit3 className="w-4 h-4 text-slate-400" />
+                              </div>
+                              <span className={`text-[10px] uppercase font-bold tracking-widest ${item.tipo === 'income' ? 'text-emerald-500' :
+                                  item.tipo === 'debt' ? 'text-indigo-400' :
+                                    'text-slate-400'
+                                }`}>
+                                {item.tipo === 'income' ? 'Ingreso' : item.tipo === 'debt' ? 'Deuda' : 'Gasto Fijo'}
+                              </span>
+                              <p className="text-sm font-medium text-slate-200 mt-1">{item.label}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Timeline por días */}
+                    <div className="grid gap-4">
+                      {Object.keys(groupedNumbers).sort((a, b) => parseInt(a) - parseInt(b)).map(day => (
+                        <div key={`day-${day}`} className="flex flex-col md:flex-row gap-4 items-start relative border-l-2 border-slate-800 ml-3 pl-6 py-2">
+                          <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-800 flex items-center justify-center font-black text-slate-300">
+                            {day}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full">
+                            {groupedNumbers[day].map(item => (
+                              <button
+                                key={`item-${item.id}`}
+                                onClick={() => updateDueDay(item.tipo, item.id)}
+                                className={`text-left p-3 rounded-xl border relative overflow-hidden group transition hover:scale-[1.02] ${item.tipo === 'income' ? 'bg-emerald-900/10 border-emerald-500/30' :
+                                  item.tipo === 'debt' ? 'bg-indigo-900/10 border-indigo-500/30' :
+                                    'bg-slate-800/50 border-slate-700/50'
+                                  }`}
+                              >
+                                <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition">
+                                  <Edit3 className="w-4 h-4 text-slate-400" />
+                                </div>
+                                <span className={`text-[10px] uppercase font-bold tracking-widest ${item.tipo === 'income' ? 'text-emerald-500' :
+                                  item.tipo === 'debt' ? 'text-indigo-400' :
+                                    'text-slate-400'
+                                  }`}>
+                                  {item.tipo === 'income' ? 'Ingreso' : item.tipo === 'debt' ? 'Deuda' : 'Gasto Fijo'}
+                                </span>
+                                <p className="text-sm font-medium text-slate-200 mt-1">{item.label}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         )}
 
@@ -957,7 +1105,7 @@ const App = () => {
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-2 pb-5 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/70">
         <div className="flex justify-around items-center">
-          {['contable', 'dashboard', 'historial', 'bolsillos'].map((tab) => (
+          {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -965,6 +1113,7 @@ const App = () => {
             >
               {tab === 'contable' && <CheckSquare className="w-5 h-5" />}
               {tab === 'dashboard' && <LayoutDashboard className="w-5 h-5" />}
+              {tab === 'fechas' && <Calendar className="w-5 h-5" />}
               {tab === 'historial' && <History className="w-5 h-5" />}
               {tab === 'bolsillos' && <Briefcase className="w-5 h-5" />}
               <span className="text-[10px] font-bold capitalize">{tab}</span>

@@ -5,7 +5,7 @@ import {
   Target, DollarSign, Calendar, LayoutDashboard, CheckSquare, Square,
   Trophy, Flame, Sparkles, Shield, RefreshCw, PlusCircle, AlertCircle,
   Edit3, ArrowRight, History, Download, PiggyBank, Briefcase, CreditCard,
-  PieChart as PieChartIcon, Activity
+  PieChart as PieChartIcon, Activity, Clock, X, Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
@@ -125,6 +125,12 @@ const App = () => {
   const [history, setHistory] = useState(() => loadData('meta2026_history', []));
   const [wallets, setWallets] = useState(() => loadData('meta2026_wallets', DEFAULT_WALLETS));
   const [whatIfExtra, setWhatIfExtra] = useState(0); // Para el simulador
+
+  // --- Payment Tracking State ---
+  const [paymentLogs, setPaymentLogs] = useState(() => loadData('meta2026_paymentLogs', []));
+  const [showPayModal, setShowPayModal] = useState(null); // { quincena, taskId }
+  const [payModalAmount, setPayModalAmount] = useState('');
+  const [payModalFreq, setPayModalFreq] = useState('quincenal');
   const [whatIfInput, setWhatIfInput] = useState('');
 
   // Save to local storage whenever state changes
@@ -138,6 +144,7 @@ const App = () => {
   useEffect(() => { localStorage.setItem('meta2026_achievements', JSON.stringify(achievements)); }, [achievements]);
   useEffect(() => { localStorage.setItem('meta2026_history', JSON.stringify(history)); }, [history]);
   useEffect(() => { localStorage.setItem('meta2026_wallets', JSON.stringify(wallets)); }, [wallets]);
+  useEffect(() => { localStorage.setItem('meta2026_paymentLogs', JSON.stringify(paymentLogs)); }, [paymentLogs]);
 
 
   // ================= CALCS =================
@@ -259,25 +266,92 @@ const App = () => {
     });
   };
 
-  const toggleTask = (quincena, id) => {
-    let newTasks;
-    let isCompleted = false;
+  // Helper: calcular próxima fecha según frecuencia
+  const calcNextPayDate = (freq) => {
+    const now = new Date();
+    const next = new Date(now);
+    if (freq === 'semanal') next.setDate(now.getDate() + 7);
+    else if (freq === 'quincenal') next.setDate(now.getDate() + 15);
+    else if (freq === 'mensual') next.setMonth(now.getMonth() + 1);
+    return next;
+  };
 
-    if (quincena === 1) {
-      newTasks = q1Tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
-      setQ1Tasks(newTasks);
-      isCompleted = newTasks.every(t => t.done);
-    } else {
-      newTasks = q2Tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
-      setQ2Tasks(newTasks);
-      isCompleted = newTasks.every(t => t.done);
+  const formatDateShort = (d) => {
+    const date = new Date(d);
+    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    return `${dias[date.getDay()]} ${date.getDate()} ${meses[date.getMonth()]}`;
+  };
+
+  // Obtener el último log para una tarea
+  const getLastLog = (taskId) => {
+    return paymentLogs.filter(l => l.taskId === taskId).sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  };
+
+  // Obtener cuántas veces se ha pagado esta tarea
+  const getPayCount = (taskId) => paymentLogs.filter(l => l.taskId === taskId).length;
+
+  const toggleTask = (quincena, id) => {
+    const tasks = quincena === 1 ? q1Tasks : q2Tasks;
+    const task = tasks.find(t => t.id === id);
+
+    // Si ya está done, permitir desmarcar directamente
+    if (task.done) {
+      if (quincena === 1) {
+        setQ1Tasks(q1Tasks.map(t => t.id === id ? { ...t, done: false } : t));
+      } else {
+        setQ2Tasks(q2Tasks.map(t => t.id === id ? { ...t, done: false } : t));
+      }
+      return;
     }
 
-    const oldWasCompleted = quincena === 1 ? q1Tasks.every(t => t.done) : q2Tasks.every(t => t.done);
-    if (isCompleted && !oldWasCompleted) {
+    // Abrir modal de pago para registrar
+    const lastLog = getLastLog(id);
+    setPayModalAmount(String(task.amount - (task.adelanto || 0)));
+    setPayModalFreq(lastLog?.frequency || 'quincenal');
+    setShowPayModal({ quincena, taskId: id });
+  };
+
+  const confirmPayment = () => {
+    if (!showPayModal) return;
+    const { quincena, taskId } = showPayModal;
+    const actualAmount = parseFloat(payModalAmount) || 0;
+    const nextDate = calcNextPayDate(payModalFreq);
+
+    // Guardar log de pago
+    const newLog = {
+      id: Date.now(),
+      taskId,
+      date: new Date().toISOString(),
+      amount: actualAmount,
+      frequency: payModalFreq,
+      nextPayDate: nextDate.toISOString()
+    };
+    setPaymentLogs(prev => [newLog, ...prev]);
+
+    // Marcar como done y actualizar cantidad real si es diferente
+    let newTasks;
+    if (quincena === 1) {
+      newTasks = q1Tasks.map(t => t.id === taskId ? { ...t, done: true, lastPaidAmount: actualAmount } : t);
+      setQ1Tasks(newTasks);
+    } else {
+      newTasks = q2Tasks.map(t => t.id === taskId ? { ...t, done: true, lastPaidAmount: actualAmount } : t);
+      setQ2Tasks(newTasks);
+    }
+
+    const allTasks = quincena === 1 ? newTasks : q1Tasks;
+    const allTasks2 = quincena === 2 ? newTasks : q2Tasks;
+    const isQ1Done = (quincena === 1 ? newTasks : q1Tasks).every(t => t.done);
+    const isQ2Done = (quincena === 2 ? newTasks : q2Tasks).every(t => t.done);
+    const wasQ1Done = q1Tasks.every(t => t.done);
+    const wasQ2Done = q2Tasks.every(t => t.done);
+
+    if ((isQ1Done && !wasQ1Done) || (isQ2Done && !wasQ2Done)) {
       triggerConfetti();
       setRacha(prev => prev + 1);
     }
+
+    setShowPayModal(null);
   };
 
   const handleAdelanto = (e, quincena, id) => {
@@ -455,58 +529,83 @@ const App = () => {
           {tasks.map(task => {
             const effectiveAmount = task.amount - (task.adelanto || 0);
             const isSnowball = task.type === 'snowball' || task.type === 'debt-min';
+            const lastLog = getLastLog(task.id);
+            const payCount = getPayCount(task.id);
+            const freqLabels = { semanal: 'Sem', quincenal: 'Quin', mensual: 'Mens' };
             return (
-              <div
-                key={task.id}
-                onClick={() => toggleTask(quincena, task.id)}
-                className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${task.done
-                  ? 'bg-slate-900/50 border-slate-800 opacity-50'
-                  : task.type === 'income'
-                    ? 'bg-blue-900/20 border-blue-800/50 hover:bg-blue-900/40'
-                    : isSnowball
-                      ? 'bg-indigo-900/20 border-indigo-800/50 hover:bg-indigo-900/40'
-                      : (task.type === 'variable' && (task.adelanto || 0) > task.amount)
-                        ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
-                        : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-                  }`}
-              >
-                <div className="flex items-center gap-3">
-                  {task.done ? (
-                    <CheckSquare className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                  ) : (
-                    <Square className="w-5 h-5 text-slate-500 flex-shrink-0" />
-                  )}
-                  <span className={`text-sm font-medium ${task.done ? 'line-through text-slate-500' : 'text-slate-300'}`}>
-                    {task.isDynamic ? `${task.text} ${activeDebt.name}` : task.text}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {task.type !== 'income' && !task.done && (
-                    <button
-                      onClick={(e) => handleAdelanto(e, quincena, task.id)}
-                      className="text-slate-500 hover:text-emerald-400 p-1"
-                      title="Ingresar Adelanto / Deducción"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                  )}
-                  <div className="text-right">
-                    <span className={`text-sm font-bold flex items-center gap-1.5 ${task.done
-                      ? 'text-slate-500'
-                      : task.type === 'income'
-                        ? 'text-blue-400'
-                        : isSnowball ? 'text-indigo-400' : 'text-slate-300'
-                      }`}>
-                      {task.type === 'income' ? '+' : '-'}${effectiveAmount}
-                    </span>
-                    {task.adelanto > 0 && (
-                      <span className={`text-[10px] mt-0.5 block font-bold ${task.adelanto > task.amount ? 'text-red-400' : 'text-emerald-500'}`}>
-                        {task.adelanto > task.amount ? '¡Sobregiro!: ' : 'Adelanto: '}${task.adelanto}
-                      </span>
+              <div key={task.id}>
+                <div
+                  onClick={() => toggleTask(quincena, task.id)}
+                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${task.done
+                    ? 'bg-slate-900/50 border-slate-800'
+                    : task.type === 'income'
+                      ? 'bg-blue-900/20 border-blue-800/50 hover:bg-blue-900/40'
+                      : isSnowball
+                        ? 'bg-indigo-900/20 border-indigo-800/50 hover:bg-indigo-900/40'
+                        : (task.type === 'variable' && (task.adelanto || 0) > task.amount)
+                          ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                          : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {task.done ? (
+                      <CheckSquare className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                    ) : (
+                      <Square className="w-5 h-5 text-slate-500 flex-shrink-0" />
                     )}
+                    <div className="min-w-0">
+                      <span className={`text-sm font-medium block ${task.done ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                        {task.isDynamic ? `${task.text} ${activeDebt.name}` : task.text}
+                      </span>
+                      {task.done && lastLog && (
+                        <span className="text-[10px] text-emerald-400/70 flex items-center gap-1 mt-0.5">
+                          <Check className="w-3 h-3" /> Pagado {formatDateShort(lastLog.date)} • ${lastLog.amount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {task.type !== 'income' && !task.done && (
+                      <button
+                        onClick={(e) => handleAdelanto(e, quincena, task.id)}
+                        className="text-slate-500 hover:text-emerald-400 p-1"
+                        title="Ingresar Adelanto / Deducción"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <div className="text-right">
+                      <span className={`text-sm font-bold flex items-center gap-1.5 ${task.done
+                        ? 'text-slate-500'
+                        : task.type === 'income'
+                          ? 'text-blue-400'
+                          : isSnowball ? 'text-indigo-400' : 'text-slate-300'
+                        }`}>
+                        {task.type === 'income' ? '+' : '-'}${effectiveAmount}
+                      </span>
+                      {task.adelanto > 0 && (
+                        <span className={`text-[10px] mt-0.5 block font-bold ${task.adelanto > task.amount ? 'text-red-400' : 'text-emerald-500'}`}>
+                          {task.adelanto > task.amount ? '¡Sobregiro!: ' : 'Adelanto: '}${task.adelanto}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Info de pago: conteo y próxima fecha */}
+                {lastLog && (
+                  <div className="flex items-center justify-between mx-2 mt-1 px-3 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800/50 text-[10px]">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <History className="w-3 h-3" /> Pagos: <span className="text-slate-300 font-bold">{payCount}</span>
+                      <span className="text-slate-600 mx-1">|</span>
+                      <span className="text-slate-400">{freqLabels[lastLog.frequency] || lastLog.frequency}</span>
+                    </span>
+                    <span className="text-amber-400/80 flex items-center gap-1 font-medium">
+                      <Clock className="w-3 h-3" /> Sig: {formatDateShort(lastLog.nextPayDate)}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -718,21 +817,97 @@ const App = () => {
               </div>
             </section>
 
-            {/* Calendario Resumido (Actualizado a enlazar Tab) */}
+            {/* Próximos Pagos Dinámicos */}
             <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-emerald-400" />
-                  Próximos Vencimientos
+                  <Clock className="w-5 h-5 text-amber-400" />
+                  Próximos Pagos
                 </h2>
                 <button
                   onClick={() => setActiveTab('fechas')}
                   className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition"
                 >
-                  Ver Calendario Completo
+                  Ver Calendario
                 </button>
               </div>
-              <p className="text-sm text-slate-400">Dirígete a la pestaña "Fechas" en el menú para configurar todos los días de cobro y pagos.</p>
+
+              {(() => {
+                // Obtener último log por tarea (solo los más recientes)
+                const allTasks = [...q1Tasks, ...q2Tasks];
+                const uniqueTaskLogs = {};
+                paymentLogs.forEach(log => {
+                  if (!uniqueTaskLogs[log.taskId] || new Date(log.date) > new Date(uniqueTaskLogs[log.taskId].date)) {
+                    uniqueTaskLogs[log.taskId] = log;
+                  }
+                });
+
+                const upcoming = Object.values(uniqueTaskLogs)
+                  .filter(log => new Date(log.nextPayDate) >= new Date())
+                  .sort((a, b) => new Date(a.nextPayDate) - new Date(b.nextPayDate));
+
+                if (upcoming.length === 0) {
+                  return <p className="text-sm text-slate-500">Marca pagos en la pestaña Contable para ver aquí cuándo toca el siguiente.</p>;
+                }
+
+                const freqLabels = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' };
+
+                return (
+                  <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                    {upcoming.map(log => {
+                      const task = allTasks.find(t => t.id === log.taskId);
+                      const payCount = getPayCount(log.taskId);
+                      const daysUntil = Math.ceil((new Date(log.nextPayDate) - new Date()) / (1000 * 60 * 60 * 24));
+                      const isUrgent = daysUntil <= 2;
+
+                      return (
+                        <div key={log.taskId} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isUrgent ? 'bg-red-900/10 border-red-500/30' : 'bg-slate-800/50 border-slate-700/50'}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-200 truncate">
+                              {task ? (task.isDynamic ? `${task.text} ${activeDebt.name}` : task.text) : log.taskId}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-slate-500">{freqLabels[log.frequency]}</span>
+                              <span className="text-[10px] text-slate-600">•</span>
+                              <span className="text-[10px] text-slate-500">Pagos: {payCount}</span>
+                              <span className="text-[10px] text-slate-600">•</span>
+                              <span className="text-[10px] text-slate-400">Último: ${log.amount}</span>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-3">
+                            <span className={`text-sm font-bold block ${isUrgent ? 'text-red-400' : 'text-amber-400'}`}>
+                              {formatDateShort(log.nextPayDate)}
+                            </span>
+                            <span className={`text-[10px] font-medium ${isUrgent ? 'text-red-300' : 'text-slate-500'}`}>
+                              {daysUntil === 0 ? '¡Hoy!' : daysUntil === 1 ? 'Mañana' : `en ${daysUntil} días`}
+                            </span>
+                          </div>
+                          {task && (
+                            <button
+                              onClick={() => {
+                                const newVal = window.prompt(`Editar monto para "${task.text}" (Último: $${log.amount}):`, task.amount);
+                                if (newVal !== null && !isNaN(newVal) && parseFloat(newVal) > 0) {
+                                  const parsed = parseFloat(newVal);
+                                  const inQ1 = q1Tasks.find(t => t.id === log.taskId);
+                                  if (inQ1) {
+                                    setQ1Tasks(q1Tasks.map(t => t.id === log.taskId ? { ...t, amount: parsed } : t));
+                                  } else {
+                                    setQ2Tasks(q2Tasks.map(t => t.id === log.taskId ? { ...t, amount: parsed } : t));
+                                  }
+                                }
+                              }}
+                              className="ml-2 text-slate-600 hover:text-emerald-400 transition p-1"
+                              title="Editar monto"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </section>
 
             {/* Gráfica de Distribución (NUEVO) */}
@@ -1121,6 +1296,83 @@ const App = () => {
           ))}
         </div>
       </div>
+
+      {/* ====== MODAL DE PAGO ====== */}
+      {showPayModal && (() => {
+        const { quincena, taskId } = showPayModal;
+        const tasks = quincena === 1 ? q1Tasks : q2Tasks;
+        const task = tasks.find(t => t.id === taskId);
+        const previewNext = calcNextPayDate(payModalFreq);
+        if (!task) return null;
+
+        return (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowPayModal(null)}>
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md shadow-2xl shadow-emerald-900/20 relative" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setShowPayModal(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+
+              <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-emerald-400" />
+                Registrar Pago
+              </h3>
+              <p className="text-sm text-slate-400 mb-5">{task.isDynamic ? `${task.text} ${activeDebt.name}` : task.text}</p>
+
+              {/* Monto real */}
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2 block">Cantidad Pagada</label>
+              <div className="flex gap-2 mb-5">
+                <span className="bg-slate-800 border border-slate-700 rounded-xl px-4 text-emerald-400 flex items-center justify-center font-black text-lg">$</span>
+                <input
+                  type="number"
+                  value={payModalAmount}
+                  onChange={e => setPayModalAmount(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-lg font-bold focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-mono"
+                  autoFocus
+                />
+              </div>
+
+              {/* Frecuencia */}
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2 block">¿Cada cuánto pagas esto?</label>
+              <div className="grid grid-cols-3 gap-2 mb-5">
+                {[
+                  { key: 'semanal', label: 'Semanal', sub: '7 días' },
+                  { key: 'quincenal', label: 'Quincenal', sub: '15 días' },
+                  { key: 'mensual', label: 'Mensual', sub: '30 días' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setPayModalFreq(opt.key)}
+                    className={`p-3 rounded-xl border text-center transition-all ${payModalFreq === opt.key
+                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                  >
+                    <span className="text-sm font-bold block">{opt.label}</span>
+                    <span className="text-[10px] text-slate-500">{opt.sub}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Preview siguiente fecha */}
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-5 flex items-center gap-3">
+                <Clock className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-amber-300/70">Próximo pago será:</p>
+                  <p className="text-amber-300 font-bold text-sm">{formatDateShort(previewNext)}</p>
+                </div>
+              </div>
+
+              {/* Confirmar */}
+              <button
+                onClick={confirmPayment}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3.5 rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2"
+              >
+                <Check className="w-5 h-5" />
+                Confirmar Pago
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       <style dangerouslySetInnerHTML={{
         __html: `

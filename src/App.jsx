@@ -5,7 +5,7 @@ import {
   Target, DollarSign, Calendar, LayoutDashboard, CheckSquare, Square,
   Trophy, Flame, Sparkles, Shield, RefreshCw, PlusCircle, AlertCircle,
   Edit3, ArrowRight, History, Download, PiggyBank, Briefcase, CreditCard,
-  PieChart as PieChartIcon, Activity, Clock, X, Check
+  PieChart as PieChartIcon, Activity, Clock, X, Check, Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
@@ -132,6 +132,45 @@ const App = () => {
   const [payModalAmount, setPayModalAmount] = useState('');
   const [payModalFreq, setPayModalFreq] = useState('quincenal');
   const [whatIfInput, setWhatIfInput] = useState('');
+
+  // --- Universal Edit Modal ---
+  const [editModal, setEditModal] = useState(null);
+  // { type, title, subtitle, value, onConfirm, inputType, placeholder, options }
+  const [editModalValue, setEditModalValue] = useState('');
+
+  // --- Edit Payment Log Modal ---
+  const [editPayLog, setEditPayLog] = useState(null); // payment log object
+  const [editPayLogAmount, setEditPayLogAmount] = useState('');
+
+  const openEditModal = (config) => {
+    setEditModal(config);
+    setEditModalValue(String(config.value || ''));
+  };
+
+  const confirmEditModal = () => {
+    if (editModal?.onConfirm) {
+      editModal.onConfirm(editModalValue);
+    }
+    setEditModal(null);
+  };
+
+  // Payment log edit/delete
+  const openEditPaymentLog = (log) => {
+    setEditPayLog(log);
+    setEditPayLogAmount(String(log.amount));
+  };
+
+  const confirmEditPaymentLog = () => {
+    if (!editPayLog) return;
+    const newAmount = parseFloat(editPayLogAmount) || 0;
+    setPaymentLogs(prev => prev.map(l => l.id === editPayLog.id ? { ...l, amount: newAmount } : l));
+    setEditPayLog(null);
+  };
+
+  const deletePaymentLog = (logId) => {
+    setPaymentLogs(prev => prev.filter(l => l.id !== logId));
+    setEditPayLog(null);
+  };
 
   // Save to local storage whenever state changes
   useEffect(() => { localStorage.setItem('meta2026_racha', JSON.stringify(racha)); }, [racha]);
@@ -360,17 +399,24 @@ const App = () => {
     const task = tasks.find(t => t.id === id);
     const currentValue = task?.adelanto || 0;
 
-    const value = window.prompt("¿Cuánto ya adelantaste o pagaste? (Actual: $" + currentValue + ")", currentValue);
-    if (value !== null) {
-      const parsed = parseFloat(value);
-      if (!isNaN(parsed) && parsed >= 0) {
-        if (quincena === 1) {
-          setQ1Tasks(q1Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
-        } else {
-          setQ2Tasks(q2Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
+    openEditModal({
+      type: 'adelanto',
+      title: 'Adelanto de Pago',
+      subtitle: task?.text || 'Tarea',
+      value: currentValue,
+      inputType: 'number',
+      placeholder: '0.00',
+      onConfirm: (val) => {
+        const parsed = parseFloat(val);
+        if (!isNaN(parsed) && parsed >= 0) {
+          if (quincena === 1) {
+            setQ1Tasks(q1Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
+          } else {
+            setQ2Tasks(q2Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
+          }
         }
       }
-    }
+    });
   };
 
   // payoffDatesMemo takes care of forecasting now
@@ -475,7 +521,7 @@ const App = () => {
   }
 
   const updateDueDay = (type, id) => {
-    let item, val;
+    let item;
     let list, setList;
     if (type === 'income') {
       item = incomes.find(i => i.id === id); list = incomes; setList = setIncomes;
@@ -486,14 +532,17 @@ const App = () => {
     }
 
     if (item) {
-      val = window.prompt(`Actualizar fecha/día para ${item.name} (Ej: '15', 'Viernes', 'Semanal', '12 y 26'):`, item.dueDay || '');
-      if (val !== null) {
-        if (val.trim() !== '') {
+      openEditModal({
+        type: 'dueDay',
+        title: 'Fecha de Pago',
+        subtitle: `${item.name} — Ej: 15, Viernes, Semanal`,
+        value: item.dueDay || '',
+        inputType: 'text',
+        placeholder: 'Ej: 15, Viernes, Semanal',
+        onConfirm: (val) => {
           setList(list.map(x => x.id === id ? { ...x, dueDay: val.trim() } : x));
-        } else {
-          setList(list.map(x => x.id === id ? { ...x, dueDay: '' } : x));
         }
-      }
+      });
     }
   };
 
@@ -812,10 +861,20 @@ const App = () => {
                           <div className="flex items-center gap-2 ml-8">
                             <button
                               onClick={() => {
-                                const newBal = window.prompt(`Editar balance de "${debt.name}" (Actual: $${debt.balance.toLocaleString()}):`, debt.balance);
-                                if (newBal !== null && !isNaN(newBal)) {
-                                  setDebts(debts.map(d => d.id === debt.id ? { ...d, balance: Math.max(0, parseFloat(newBal)) } : d));
-                                }
+                                openEditModal({
+                                  type: 'debtBalance',
+                                  title: 'Editar Balance',
+                                  subtitle: debt.name,
+                                  value: debt.balance,
+                                  inputType: 'number',
+                                  placeholder: '0.00',
+                                  onConfirm: (val) => {
+                                    const newBal = parseFloat(val);
+                                    if (!isNaN(newBal)) {
+                                      setDebts(debts.map(d => d.id === debt.id ? { ...d, balance: Math.max(0, newBal) } : d));
+                                    }
+                                  }
+                                });
                               }}
                               className="text-lg font-black text-slate-200 hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1 group"
                               title="Click para editar balance"
@@ -943,16 +1002,25 @@ const App = () => {
                           {task && (
                             <button
                               onClick={() => {
-                                const newVal = window.prompt(`Editar monto para "${task.text}" (Último: $${log.amount}):`, task.amount);
-                                if (newVal !== null && !isNaN(newVal) && parseFloat(newVal) > 0) {
-                                  const parsed = parseFloat(newVal);
-                                  const inQ1 = q1Tasks.find(t => t.id === log.taskId);
-                                  if (inQ1) {
-                                    setQ1Tasks(q1Tasks.map(t => t.id === log.taskId ? { ...t, amount: parsed } : t));
-                                  } else {
-                                    setQ2Tasks(q2Tasks.map(t => t.id === log.taskId ? { ...t, amount: parsed } : t));
+                                openEditModal({
+                                  type: 'taskAmount',
+                                  title: 'Editar Monto de Tarea',
+                                  subtitle: task.text,
+                                  value: task.amount,
+                                  inputType: 'number',
+                                  placeholder: '0.00',
+                                  onConfirm: (val) => {
+                                    const parsed = parseFloat(val);
+                                    if (!isNaN(parsed) && parsed > 0) {
+                                      const inQ1 = q1Tasks.find(t => t.id === log.taskId);
+                                      if (inQ1) {
+                                        setQ1Tasks(q1Tasks.map(t => t.id === log.taskId ? { ...t, amount: parsed } : t));
+                                      } else {
+                                        setQ2Tasks(q2Tasks.map(t => t.id === log.taskId ? { ...t, amount: parsed } : t));
+                                      }
+                                    }
                                   }
-                                }
+                                });
                               }}
                               className="ml-2 text-slate-600 hover:text-emerald-400 transition p-1"
                               title="Editar monto"
@@ -1150,22 +1218,30 @@ const App = () => {
                 <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2 mb-3">
                   <History className="w-4 h-4" /> Últimos Pagos Realizados
                 </h3>
-                <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
+                <p className="text-[10px] text-slate-600 mb-2">Toca un pago para editar o eliminar.</p>
+                <div className="space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
                   {(() => {
                     const taskNameMap = {};
                     [...q1Tasks, ...q2Tasks].forEach(t => { taskNameMap[t.id] = t.text; });
                     const freqLabel = { semanal: 'Sem', quincenal: 'Quin', mensual: 'Mens' };
-                    return paymentLogs.slice(0, 20).map((log, idx) => (
-                      <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
-                        <div className="flex items-center gap-2">
-                          <Check className="w-3.5 h-3.5 text-emerald-500" />
-                          <div>
-                            <p className="text-xs font-medium text-slate-300">{taskNameMap[log.taskId] || log.taskId}</p>
+                    return paymentLogs.slice(0, 30).map((log, idx) => (
+                      <button
+                        key={log.id || idx}
+                        onClick={() => openEditPaymentLog(log)}
+                        className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group text-left"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-300 truncate">{taskNameMap[log.taskId] || log.taskId}</p>
                             <p className="text-[10px] text-slate-600">{formatDateShort(log.date)} · {freqLabel[log.frequency] || log.frequency}</p>
                           </div>
                         </div>
-                        <span className="text-xs font-bold text-emerald-400">${log.amount}</span>
-                      </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-bold text-emerald-400">${log.amount}</span>
+                          <Edit3 className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
                     ));
                   })()}
                 </div>
@@ -1285,23 +1361,43 @@ const App = () => {
                     <div className="flex gap-2 relative z-10">
                       <button
                         onClick={() => {
-                          const val = window.prompt(`Sumar a ${wallet.name}:`, "0");
-                          if (val && !isNaN(val)) {
-                            const newWallets = [...wallets];
-                            newWallets[idx].balance += parseFloat(val);
-                            setWallets(newWallets);
-                          }
+                          openEditModal({
+                            type: 'walletAdd',
+                            title: 'Agregar Fondos',
+                            subtitle: wallet.name,
+                            value: 0,
+                            inputType: 'number',
+                            placeholder: '0.00',
+                            onConfirm: (val) => {
+                              const parsed = parseFloat(val);
+                              if (!isNaN(parsed) && parsed > 0) {
+                                const newWallets = [...wallets];
+                                newWallets[idx].balance += parsed;
+                                setWallets(newWallets);
+                              }
+                            }
+                          });
                         }}
                         className="flex-1 bg-white/5 hover:bg-emerald-500/20 text-emerald-400 font-bold py-2.5 rounded-xl transition-all border border-white/10 hover:border-emerald-500/40 text-sm"
                       >+ Agregar</button>
                       <button
                         onClick={() => {
-                          const val = window.prompt(`Restar de ${wallet.name}:`, "0");
-                          if (val && !isNaN(val)) {
-                            const newWallets = [...wallets];
-                            newWallets[idx].balance = Math.max(0, newWallets[idx].balance - parseFloat(val));
-                            setWallets(newWallets);
-                          }
+                          openEditModal({
+                            type: 'walletRemove',
+                            title: 'Retirar Fondos',
+                            subtitle: wallet.name,
+                            value: 0,
+                            inputType: 'number',
+                            placeholder: '0.00',
+                            onConfirm: (val) => {
+                              const parsed = parseFloat(val);
+                              if (!isNaN(parsed) && parsed > 0) {
+                                const newWallets = [...wallets];
+                                newWallets[idx].balance = Math.max(0, newWallets[idx].balance - parsed);
+                                setWallets(newWallets);
+                              }
+                            }
+                          });
                         }}
                         className="flex-1 bg-white/5 hover:bg-red-500/20 text-red-400 font-bold py-2.5 rounded-xl transition-all border border-white/10 hover:border-red-500/40 text-sm"
                       >- Retirar</button>
@@ -1414,6 +1510,151 @@ const App = () => {
               >
                 <Check className="w-5 h-5" />
                 Confirmar Pago
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ====== UNIVERSAL EDIT MODAL ====== */}
+      {editModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4" onClick={() => setEditModal(null)}>
+          <div className="glass-card rounded-3xl p-6 w-full max-w-sm shadow-2xl shadow-indigo-900/20 relative animate-fadeUp border-indigo-500/10" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setEditModal(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                <Edit3 className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">{editModal.title}</h3>
+                <p className="text-xs text-slate-500">{editModal.subtitle}</p>
+              </div>
+            </div>
+
+            <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2 block">
+              {editModal.inputType === 'number' ? 'Valor' : 'Información'}
+            </label>
+            <div className="flex gap-2 mb-5">
+              {editModal.inputType === 'number' && (
+                <span className="bg-slate-800 border border-slate-700 rounded-xl px-4 text-indigo-400 flex items-center justify-center font-black text-lg">$</span>
+              )}
+              <input
+                type={editModal.inputType || 'text'}
+                value={editModalValue}
+                onChange={e => setEditModalValue(e.target.value)}
+                placeholder={editModal.placeholder || ''}
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-lg font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') confirmEditModal(); }}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditModal(null)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-sm transition-all border border-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmEditModal}
+                className="flex-1 bg-indigo-500 hover:bg-indigo-400 text-white font-black py-3 rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== EDIT PAYMENT LOG MODAL ====== */}
+      {editPayLog && (() => {
+        const taskNameMap = {};
+        [...q1Tasks, ...q2Tasks].forEach(t => { taskNameMap[t.id] = t.text; });
+        const taskName = taskNameMap[editPayLog.taskId] || editPayLog.taskId;
+        const freqLabel = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' };
+
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4" onClick={() => setEditPayLog(null)}>
+            <div className="glass-card rounded-3xl p-6 w-full max-w-sm shadow-2xl shadow-emerald-900/20 relative animate-fadeUp border-emerald-500/10" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setEditPayLog(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Editar Pago</h3>
+                  <p className="text-xs text-slate-500">{taskName}</p>
+                </div>
+              </div>
+
+              {/* Info del pago */}
+              <div className="bg-slate-800/50 rounded-xl p-3 mb-4 space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Fecha:</span>
+                  <span className="text-slate-300 font-medium">{formatDateShort(editPayLog.date)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Frecuencia:</span>
+                  <span className="text-slate-300 font-medium">{freqLabel[editPayLog.frequency] || editPayLog.frequency}</span>
+                </div>
+                {editPayLog.nextPayDate && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Próximo pago:</span>
+                    <span className="text-amber-400 font-medium">{formatDateShort(editPayLog.nextPayDate)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Monto editable */}
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2 block">Monto Pagado</label>
+              <div className="flex gap-2 mb-5">
+                <span className="bg-slate-800 border border-slate-700 rounded-xl px-4 text-emerald-400 flex items-center justify-center font-black text-lg">$</span>
+                <input
+                  type="number"
+                  value={editPayLogAmount}
+                  onChange={e => setEditPayLogAmount(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-lg font-bold focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-mono"
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') confirmEditPaymentLog(); }}
+                />
+              </div>
+
+              {/* Acciones */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => setEditPayLog(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-sm transition-all border border-slate-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmEditPaymentLog}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  Guardar
+                </button>
+              </div>
+
+              {/* Eliminar */}
+              <button
+                onClick={() => {
+                  if (window.confirm('¿Eliminar este pago del historial?')) {
+                    deletePaymentLog(editPayLog.id);
+                  }
+                }}
+                className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-2.5 rounded-xl text-xs transition-all border border-red-500/20 hover:border-red-500/40 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Eliminar Pago
               </button>
             </div>
           </div>

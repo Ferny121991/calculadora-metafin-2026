@@ -1075,21 +1075,27 @@ const App = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <Calendar className="w-6 h-6 text-indigo-400" /> Calendario Maestro
+                  <Calendar className="w-6 h-6 text-indigo-400" /> Calendario de Pagos
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">Organiza tu cash-flow por fechas.</p>
+                <p className="text-sm text-slate-500 mt-1">Próximos pagos y registro de actividad.</p>
               </div>
             </div>
 
             {/* Próximos Pagos desde Payment Logs */}
             {(() => {
+              // Build a lookup map of task names from q1/q2 tasks
+              const taskNameMap = {};
+              [...q1Tasks, ...q2Tasks].forEach(t => {
+                taskNameMap[t.id] = t.text;
+              });
+
               const upcoming = [];
               paymentLogs.forEach(log => {
                 if (log.nextPayDate) {
                   const nextDate = new Date(log.nextPayDate);
                   const now = new Date();
                   const diffDays = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                  if (diffDays >= 0 && diffDays <= 30) {
+                  if (diffDays >= 0 && diffDays <= 60) {
                     upcoming.push({ ...log, diffDays, nextDate });
                   }
                 }
@@ -1103,154 +1109,71 @@ const App = () => {
               });
               const uniqueUpcoming = Array.from(seen.values()).sort((a, b) => a.diffDays - b.diffDays);
 
-              if (uniqueUpcoming.length === 0) return null;
+              // Frequency labels
+              const freqLabel = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' };
+
               return (
                 <div className="glass-card p-4 rounded-xl">
                   <h3 className="text-sm font-bold text-amber-300 flex items-center gap-2 mb-3">
                     <Clock className="w-4 h-4" /> Próximos Pagos Programados
                   </h3>
-                  <div className="space-y-2 stagger-children">
-                    {uniqueUpcoming.slice(0, 6).map((item, idx) => (
-                      <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${item.diffDays <= 2 ? 'bg-red-500/10 border-red-500/30' : item.diffDays <= 7 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-slate-800/50 border-slate-700/30'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${item.diffDays <= 2 ? 'bg-red-500/20 text-red-400' : item.diffDays <= 7 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
-                            {item.diffDays}d
+                  {uniqueUpcoming.length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-4">No hay pagos programados aún. Marca tareas como pagadas para ver aquí la próxima fecha.</p>
+                  ) : (
+                    <div className="space-y-2 stagger-children">
+                      {uniqueUpcoming.map((item, idx) => {
+                        const taskName = taskNameMap[item.taskId] || item.taskId;
+                        return (
+                          <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${item.diffDays <= 2 ? 'bg-red-500/10 border-red-500/30' : item.diffDays <= 7 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-slate-800/50 border-slate-700/30'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black ${item.diffDays <= 2 ? 'bg-red-500/20 text-red-400' : item.diffDays <= 7 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
+                                {item.diffDays}d
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-white">{taskName}</p>
+                                <p className="text-[10px] text-slate-500">{formatDateShort(item.nextPayDate)} · <span className="text-slate-400">{freqLabel[item.frequency] || item.frequency}</span></p>
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold text-slate-300">${item.amount}</span>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-white">{item.taskId.replace(/^q[12]-/, '').replace(/-/g, ' ')}</p>
-                            <p className="text-[10px] text-slate-500">{formatDateShort(item.nextPayDate)}</p>
-                          </div>
-                        </div>
-                        <span className="text-sm font-bold text-slate-300">${item.amount}</span>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })()}
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-              {(() => {
-                // Combinar todos los items que tienen fecha
-                const allItems = [
-                  ...incomes.map(i => ({ ...i, tipo: 'income', label: i.name })),
-                  ...debts.map(d => ({ ...d, tipo: 'debt', label: d.name })),
-                  ...expenses.map(e => ({ ...e, tipo: 'expense', label: e.name }))
-                ];
-
-                // Agrupar
-                let groupedNumbers = {};
-                let textGroups = {};
-                let withoutDate = [];
-
-                allItems.forEach(item => {
-                  const val = item.dueDay;
-                  if (val === undefined || val === null || val.toString().trim() === '') {
-                    withoutDate.push(item);
-                    return;
-                  }
-
-                  const numDay = parseInt(val);
-                  // Si es puramente un número del 1 al 31
-                  if (!isNaN(numDay) && numDay > 0 && numDay <= 31 && numDay.toString() === val.toString().trim()) {
-                    if (!groupedNumbers[numDay]) groupedNumbers[numDay] = [];
-                    groupedNumbers[numDay].push(item);
-                  } else {
-                    // Es un texto libre, ej: 'Viernes', 'Semanal', '12 y 26'
-                    const textKey = val.toString().trim();
-                    if (!textGroups[textKey]) textGroups[textKey] = [];
-                    textGroups[textKey].push(item);
-                  }
-                });
-
-                return (
-                  <div className="p-4 md:p-6 space-y-6">
-                    {/* Items sin fecha */}
-                    {withoutDate.length > 0 && (
-                      <div className="bg-red-900/10 border border-red-500/20 p-4 rounded-xl">
-                        <h3 className="text-red-400 font-bold mb-3 flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Sin día asignado</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {withoutDate.map(item => (
-                            <button key={`no-date-${item.id}`} onClick={() => updateDueDay(item.tipo, item.id)} className="text-left bg-slate-950 border border-slate-800 p-3 rounded-lg hover:border-slate-600 transition group flex justify-between items-center">
-                              <span className="text-sm text-slate-300">{item.label}</span>
-                              <Edit3 className="w-4 h-4 text-slate-600 group-hover:text-emerald-400" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Timeline Flexible/Textual */}
-                    {Object.keys(textGroups).length > 0 && Object.keys(textGroups).sort().map(texto => (
-                      <div key={`text-${texto}`} className="flex flex-col md:flex-row gap-4 items-start relative border-l-2 border-indigo-500/50 ml-3 pl-6 py-2 mb-4">
-                        <div className="absolute -left-[30px] top-4 rounded-full bg-slate-900 border-2 border-indigo-500/50 px-3 py-1 flex items-center justify-center font-bold text-indigo-300 text-xs shadow-lg z-10">
-                          {texto}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full ml-4 md:ml-12">
-                          {textGroups[texto].map(item => (
-                            <button
-                              key={`item-${item.id}`}
-                              onClick={() => updateDueDay(item.tipo, item.id)}
-                              className={`text-left p-3 rounded-xl border relative overflow-hidden group transition hover:scale-[1.02] ${item.tipo === 'income' ? 'bg-emerald-900/10 border-emerald-500/30' :
-                                  item.tipo === 'debt' ? 'bg-indigo-900/10 border-indigo-500/30' :
-                                    'bg-slate-800/50 border-slate-700/50'
-                                }`}
-                            >
-                              <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition">
-                                <Edit3 className="w-4 h-4 text-slate-400" />
-                              </div>
-                              <span className={`text-[10px] uppercase font-bold tracking-widest ${item.tipo === 'income' ? 'text-emerald-500' :
-                                  item.tipo === 'debt' ? 'text-indigo-400' :
-                                    'text-slate-400'
-                                }`}>
-                                {item.tipo === 'income' ? 'Ingreso' : item.tipo === 'debt' ? 'Deuda' : 'Gasto Fijo'}
-                              </span>
-                              <p className="text-sm font-medium text-slate-200 mt-1">{item.label}</p>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Timeline por días */}
-                    <div className="grid gap-4">
-                      {Object.keys(groupedNumbers).sort((a, b) => parseInt(a) - parseInt(b)).map(day => (
-                        <div key={`day-${day}`} className="flex flex-col md:flex-row gap-4 items-start relative border-l-2 border-slate-800 ml-3 pl-6 py-2">
-                          <div className="absolute -left-[17px] top-4 w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-800 flex items-center justify-center font-black text-slate-300">
-                            {day}
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full">
-                            {groupedNumbers[day].map(item => (
-                              <button
-                                key={`item-${item.id}`}
-                                onClick={() => updateDueDay(item.tipo, item.id)}
-                                className={`text-left p-3 rounded-xl border relative overflow-hidden group transition hover:scale-[1.02] ${item.tipo === 'income' ? 'bg-emerald-900/10 border-emerald-500/30' :
-                                  item.tipo === 'debt' ? 'bg-indigo-900/10 border-indigo-500/30' :
-                                    'bg-slate-800/50 border-slate-700/50'
-                                  }`}
-                              >
-                                <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition">
-                                  <Edit3 className="w-4 h-4 text-slate-400" />
-                                </div>
-                                <span className={`text-[10px] uppercase font-bold tracking-widest ${item.tipo === 'income' ? 'text-emerald-500' :
-                                  item.tipo === 'debt' ? 'text-indigo-400' :
-                                    'text-slate-400'
-                                  }`}>
-                                  {item.tipo === 'income' ? 'Ingreso' : item.tipo === 'debt' ? 'Deuda' : 'Gasto Fijo'}
-                                </span>
-                                <p className="text-sm font-medium text-slate-200 mt-1">{item.label}</p>
-                              </button>
-                            ))}
+            {/* Historial reciente de pagos */}
+            {paymentLogs.length > 0 && (
+              <div className="glass-card p-4 rounded-xl">
+                <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2 mb-3">
+                  <History className="w-4 h-4" /> Últimos Pagos Realizados
+                </h3>
+                <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
+                  {(() => {
+                    const taskNameMap = {};
+                    [...q1Tasks, ...q2Tasks].forEach(t => { taskNameMap[t.id] = t.text; });
+                    const freqLabel = { semanal: 'Sem', quincenal: 'Quin', mensual: 'Mens' };
+                    return paymentLogs.slice(0, 20).map((log, idx) => (
+                      <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          <div>
+                            <p className="text-xs font-medium text-slate-300">{taskNameMap[log.taskId] || log.taskId}</p>
+                            <p className="text-[10px] text-slate-600">{formatDateShort(log.date)} · {freqLabel[log.frequency] || log.frequency}</p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
+                        <span className="text-xs font-bold text-emerald-400">${log.amount}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         )}
+
 
         {/* ================= VISTA: HISTORIAL ================= */}
         {activeTab === 'historial' && (

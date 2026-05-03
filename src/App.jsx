@@ -510,22 +510,24 @@ const App = () => {
     const isCompleted = progress === 100;
 
     return (
-      <div className={`p-5 md:p-6 rounded-3xl border transition-all duration-300 backdrop-blur-sm ${isCompleted ? 'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.15)]' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-emerald-400" />
+      <div className={`p-4 md:p-5 rounded-2xl border transition-all duration-300 ${isCompleted ? 'glass-card border-emerald-500/30 shadow-lg shadow-emerald-500/10' : 'glass-card'}`}>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isCompleted ? 'bg-emerald-500/20' : 'bg-indigo-500/20'}`}>
+              <Calendar className={`w-4 h-4 ${isCompleted ? 'text-emerald-400' : 'text-indigo-400'}`} />
+            </div>
             Quincena {quincena}
           </h3>
-          <span className={`text-sm font-bold px-3 py-1 rounded-full ${isCompleted ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-emerald-400'}`}>
+          <span className={`text-xs font-black px-3 py-1 rounded-full ${isCompleted ? 'bg-emerald-500 text-white animate-pulseGlow' : progress > 50 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-400'}`}>
             {progress}% Listo
           </span>
         </div>
 
-        <div className="w-full bg-slate-700 rounded-full h-2 mb-6 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+        <div className="w-full bg-slate-800/60 rounded-full h-1.5 mb-5 overflow-hidden">
+          <div className={`h-full rounded-full transition-all duration-700 ${isCompleted ? 'bg-emerald-400' : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 animate-shimmer'}`} style={{ width: `${progress}%` }}></div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           {tasks.map(task => {
             const effectiveAmount = task.amount - (task.adelanto || 0);
             const isSnowball = task.type === 'snowball' || task.type === 'debt-min';
@@ -618,65 +620,88 @@ const App = () => {
     <div className={`min-h-screen text-slate-300 font-sans pb-20 transition-colors duration-1000 ${getThemeClass()}`}>
 
       {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-6 sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      <header className="glass sticky top-0 z-20 border-b border-white/5">
+        <div className="h-0.5 bg-gradient-to-r from-emerald-500 via-indigo-500 to-fuchsia-500 animate-gradient"></div>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-3">
           <div>
-            <h1 className="text-2xl font-black text-white flex items-center gap-2 tracking-tight">
-              <Target className="w-6 h-6 text-emerald-500" />
-              Plan Financiero <span className="text-emerald-500">2026</span>
-            </h1>
-            <div className="flex items-center gap-3 mt-1 5">
-              <p className="text-slate-400 text-sm flex items-center gap-1 font-medium bg-slate-800/30 px-3 py-1 rounded-full border border-slate-700/50">
-                <Flame className="w-4 h-4 text-orange-500" /> <span className="text-white font-bold">{racha}</span>
-              </p>
-
-              {/* Achievement Badges */}
-              <div className="flex gap-1">
-                {achievements.firstQPerfect && <span title="1er Paso: Quincena Invicta" className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Trophy className="w-3 h-3" /> 1er Logro</span>}
-                {achievements.debtDestroyer && <span title="Destructor: $500+ Extras" className="bg-indigo-500/20 text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Sparkles className="w-3 h-3" /> Destructor</span>}
+            <h1 className="text-xl md:text-2xl font-black text-white flex items-center gap-2 tracking-tight">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-400 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Target className="w-5 h-5 text-white" />
               </div>
+              Plan Financiero <span className="gradient-text">2026</span>
+            </h1>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-slate-400 text-xs flex items-center gap-1.5 font-medium bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/30">
+                <Flame className="w-3.5 h-3.5 text-orange-500" /> <span className="text-white font-bold">{racha}</span> racha
+              </span>
+              {achievements.firstQPerfect && <span title="1er Paso" className="bg-emerald-500/15 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Trophy className="w-3 h-3" /> Invicto</span>}
+              {achievements.debtDestroyer && <span title="Destructor" className="bg-indigo-500/15 text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Sparkles className="w-3 h-3" /> Destructor</span>}
             </div>
           </div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 w-auto gap-1">
+          <div className="hidden md:flex glass p-1 rounded-xl w-auto gap-0.5">
             {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`py-2 px-4 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all capitalize ${activeTab === tab ? 'bg-emerald-500/20 text-emerald-400 shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'}`}
+                className={`py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all capitalize ${activeTab === tab ? 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
               >
-                {tab === 'contable' && <CheckSquare className="w-4 h-4" />}
-                {tab === 'dashboard' && <LayoutDashboard className="w-4 h-4" />}
-                {tab === 'fechas' && <Calendar className="w-4 h-4" />}
-                {tab === 'historial' && <History className="w-4 h-4" />}
-                {tab === 'bolsillos' && <Briefcase className="w-4 h-4" />}
-                <span className="hidden lg:inline">{tab}</span>
+                {tab === 'contable' && <CheckSquare className="w-3.5 h-3.5" />}
+                {tab === 'dashboard' && <LayoutDashboard className="w-3.5 h-3.5" />}
+                {tab === 'fechas' && <Calendar className="w-3.5 h-3.5" />}
+                {tab === 'historial' && <History className="w-3.5 h-3.5" />}
+                {tab === 'bolsillos' && <Briefcase className="w-3.5 h-3.5" />}
+                {tab}
               </button>
             ))}
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 space-y-6 mt-6">
+      <main className="max-w-5xl mx-auto p-4 space-y-6 mt-4">
 
         {/* ================= VISTA: MI CONTABLE ================= */}
         {activeTab === 'contable' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start bg-indigo-900/20 border border-indigo-500/30 text-indigo-300 p-4 rounded-xl text-sm gap-4">
+          <div className="space-y-5 animate-fadeUp">
+
+            {/* NEW: Quick Stats Bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Ingresos', value: `$${totalIncome.toLocaleString()}`, icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+                { label: 'Gastos', value: `$${totalExpense.toLocaleString()}`, icon: <TrendingDown className="w-4 h-4" />, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+                { label: 'Deuda Total', value: `$${totalDebtBalance.toLocaleString()}`, icon: <CreditCard className="w-4 h-4" />, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+                { label: 'Hoy', value: new Date().toLocaleDateString('es', { day: 'numeric', month: 'short' }), icon: <Calendar className="w-4 h-4" />, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+              ].map((stat, idx) => (
+                <div key={idx} className={`${stat.bg} border rounded-xl p-3 card-hover`}>
+                  <div className={`flex items-center gap-1.5 ${stat.color} mb-1`}>
+                    {stat.icon}
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{stat.label}</span>
+                  </div>
+                  <p className="text-lg font-black text-white">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start glass-card text-indigo-300 p-4 rounded-xl text-sm gap-4">
               <div className="flex items-start gap-3">
-                <Sparkles className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <p><strong>Meta Activa: {activeDebt.name}</strong>. Cierra el mes cuando ambas quincenas estén listas para abonar todo el progreso de excedentes a las deudas.</p>
+                <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-indigo-200">⚔️ Meta Activa: {activeDebt.name}</p>
+                  <p className="text-indigo-400/70 text-xs mt-0.5">Cierra el mes cuando ambas quincenas estén listas.</p>
+                </div>
               </div>
               <button
                 onClick={cerrarMes}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors w-full sm:w-auto font-bold shadow-lg shadow-indigo-500/20"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all w-full sm:w-auto font-bold shadow-lg shadow-indigo-500/20 text-sm"
               >
                 <AlertCircle className="w-4 h-4" /> Cierre de Mes
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {renderChecklist(q1Tasks, 1)}
               {renderChecklist(q2Tasks, 2)}
             </div>
@@ -751,49 +776,82 @@ const App = () => {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
             {/* Progreso Global Dinamica */}
-            <section className="bg-slate-900 p-6 rounded-2xl border border-slate-800 relative overflow-hidden">
+            <section className="glass-card p-6 rounded-2xl relative overflow-hidden">
               {achievements.debtDestroyer && <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl"></div>}
-              <h2 className="text-xl font-bold mb-2 text-white flex items-center gap-2">
+              <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-indigo-500/5 rounded-full blur-3xl"></div>
+              <h2 className="text-xl font-bold mb-1 text-white flex items-center gap-2 relative z-10">
                 <Trophy className="w-5 h-5 text-yellow-500" />
-                Misión Principal Deuda: ${totalDebtBalance.toLocaleString()}
+                Misión Principal
               </h2>
-              <p className="text-sm text-slate-400 mb-6 flex items-center gap-2">
-                Saldo original: <span className="line-through">${deudaTotalInicial.toLocaleString()}</span>
-              </p>
+              <div className="flex items-baseline gap-3 mb-6 relative z-10">
+                <span className="text-3xl font-black text-white">${totalDebtBalance.toLocaleString()}</span>
+                <span className="text-sm text-slate-500 line-through">${deudaTotalInicial.toLocaleString()}</span>
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  -{Math.round(((deudaTotalInicial - totalDebtBalance) / deudaTotalInicial) * 100)}%
+                </span>
+              </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 stagger-children relative z-10">
                 {debts.map((debt, i) => {
                   const isSaldada = debt.balance <= 0;
                   const isActiva = activeDebt.id === debt.id;
                   const pct = isSaldada ? 100 : Math.max(5, 100 - (debt.balance / debt.initial) * 100);
 
                   return (
-                    <div key={debt.id} className="relative">
-                      <div className="flex justify-between mb-2">
-                        <div className="flex flex-col">
-                          <span className={`font-semibold text-sm ${isSaldada ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
-                            {i + 1}. {debt.name} (${debt.balance.toLocaleString()})
+                    <div key={debt.id} className={`p-4 rounded-xl border transition-all ${isActiva ? 'bg-indigo-500/5 border-indigo-500/30 shadow-lg shadow-indigo-500/5' : isSaldada ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-800/30 border-slate-700/40'}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${isSaldada ? 'bg-emerald-500 text-white' : isActiva ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                              {isSaldada ? '✓' : i + 1}
+                            </span>
+                            <span className={`font-bold text-sm ${isSaldada ? 'text-slate-500 line-through' : 'text-white'}`}>
+                              {debt.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 ml-8">
+                            <button
+                              onClick={() => {
+                                const newBal = window.prompt(`Editar balance de "${debt.name}" (Actual: $${debt.balance.toLocaleString()}):`, debt.balance);
+                                if (newBal !== null && !isNaN(newBal)) {
+                                  setDebts(debts.map(d => d.id === debt.id ? { ...d, balance: Math.max(0, parseFloat(newBal)) } : d));
+                                }
+                              }}
+                              className="text-lg font-black text-slate-200 hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1 group"
+                              title="Click para editar balance"
+                            >
+                              ${debt.balance.toLocaleString()}
+                              <Edit3 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-400" />
+                            </button>
+                            {debt.apr > 0 && (
+                              <span className="text-[10px] text-red-400/60 bg-red-500/10 px-1.5 py-0.5 rounded font-mono">{debt.apr}% APR</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${isSaldada ? 'bg-emerald-500/20 text-emerald-400' :
+                            isActiva ? 'bg-indigo-500/20 text-indigo-300 ring-1 ring-inset ring-indigo-500/40' :
+                              'bg-slate-800 text-slate-500'
+                            }`}>
+                            {isSaldada ? '¡Saldada! 🎉' : isActiva ? '⚔️ Objetivo' : 'En Espera'}
                           </span>
                           {!isSaldada && (
-                            <span className="text-[10px] text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-indigo-400" /> Meta Cero: {payoffDatesMemo[debt.id] || "---"}
+                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-indigo-400" /> {payoffDatesMemo[debt.id] || "---"}
                             </span>
                           )}
                         </div>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded self-start ${isSaldada ? 'bg-emerald-500/10 text-emerald-500' :
-                          isActiva ? 'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/50' :
-                            'bg-slate-800 text-slate-400'
-                          }`}>
-                          {isSaldada ? '¡Saldada!' : isActiva ? 'Objetivo Actual' : 'En Espera'}
-                        </span>
                       </div>
-                      <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
-                        <div className={`h-full transition-all duration-1000 ${isSaldada ? 'bg-emerald-500' :
-                          isActiva ? 'bg-gradient-to-r from-indigo-600 to-indigo-400 relative' :
+                      <div className="w-full bg-slate-800/80 rounded-full h-2.5 overflow-hidden">
+                        <div className={`h-full transition-all duration-1000 rounded-full ${isSaldada ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' :
+                          isActiva ? 'bg-gradient-to-r from-indigo-600 via-indigo-400 to-cyan-400 animate-shimmer relative' :
                             'bg-slate-600'
                           }`} style={{ width: `${pct}%` }}>
-                          {isActiva && <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/20 animate-pulse rounded-full blur-sm"></div>}
                         </div>
+                      </div>
+                      <div className="flex justify-between mt-1.5 text-[10px] text-slate-500">
+                        <span>{pct.toFixed(0)}% pagado</span>
+                        <span>${(debt.initial - debt.balance).toLocaleString()} abonado</span>
                       </div>
                     </div>
                   )
@@ -1013,11 +1071,63 @@ const App = () => {
 
         {/* ================= VISTA: FECHAS / CALENDARIO ================= */}
         {activeTab === 'fechas' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">
-              <Calendar className="w-6 h-6 text-indigo-400" /> Calendario Maestro
-            </h2>
-            <p className="text-sm text-slate-400 mb-6">Administra qué día del mes caen tus ingresos y pagos para organizar mejor el cash-flow.</p>
+          <div className="space-y-6 animate-fadeUp">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-6 h-6 text-indigo-400" /> Calendario Maestro
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">Organiza tu cash-flow por fechas.</p>
+              </div>
+            </div>
+
+            {/* Próximos Pagos desde Payment Logs */}
+            {(() => {
+              const upcoming = [];
+              paymentLogs.forEach(log => {
+                if (log.nextPayDate) {
+                  const nextDate = new Date(log.nextPayDate);
+                  const now = new Date();
+                  const diffDays = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                  if (diffDays >= 0 && diffDays <= 30) {
+                    upcoming.push({ ...log, diffDays, nextDate });
+                  }
+                }
+              });
+              // Deduplicate by taskId, keep most recent
+              const seen = new Map();
+              upcoming.forEach(u => {
+                if (!seen.has(u.taskId) || new Date(u.date) > new Date(seen.get(u.taskId).date)) {
+                  seen.set(u.taskId, u);
+                }
+              });
+              const uniqueUpcoming = Array.from(seen.values()).sort((a, b) => a.diffDays - b.diffDays);
+
+              if (uniqueUpcoming.length === 0) return null;
+              return (
+                <div className="glass-card p-4 rounded-xl">
+                  <h3 className="text-sm font-bold text-amber-300 flex items-center gap-2 mb-3">
+                    <Clock className="w-4 h-4" /> Próximos Pagos Programados
+                  </h3>
+                  <div className="space-y-2 stagger-children">
+                    {uniqueUpcoming.slice(0, 6).map((item, idx) => (
+                      <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${item.diffDays <= 2 ? 'bg-red-500/10 border-red-500/30' : item.diffDays <= 7 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-slate-800/50 border-slate-700/30'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${item.diffDays <= 2 ? 'bg-red-500/20 text-red-400' : item.diffDays <= 7 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
+                            {item.diffDays}d
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-white">{item.taskId.replace(/^q[12]-/, '').replace(/-/g, ' ')}</p>
+                            <p className="text-[10px] text-slate-500">{formatDateShort(item.nextPayDate)}</p>
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-slate-300">${item.amount}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
               {(() => {
@@ -1144,7 +1254,7 @@ const App = () => {
 
         {/* ================= VISTA: HISTORIAL ================= */}
         {activeTab === 'historial' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-fadeUp">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                 <History className="w-6 h-6 text-indigo-400" /> Archivo Mensual
@@ -1210,88 +1320,101 @@ const App = () => {
 
         {/* ================= VISTA: BOLSILLOS (WALLETS) ================= */}
         {activeTab === 'bolsillos' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-6">
-              <Briefcase className="w-6 h-6 text-emerald-400" /> Control de Cuentas
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {wallets.map((wallet, idx) => (
-                <div key={wallet.id} className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 p-6 rounded-3xl relative overflow-hidden group hover:border-emerald-500/30 transition-all shadow-xl">
-                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-slate-800/50 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors"></div>
-
-                  <div className="flex justify-between items-start mb-4 relative z-10">
-                    <h3 className="font-bold text-slate-300 text-lg flex items-center gap-2">
-                      {wallet.id === 'cheques' && <Briefcase className="w-5 h-5 text-blue-400" />}
-                      {wallet.id === 'ahorros' && <PiggyBank className="w-5 h-5 text-fuchsia-400" />}
-                      {wallet.id === 'efectivo' && <Wallet className="w-5 h-5 text-emerald-400" />}
-                      {wallet.name}
-                    </h3>
-                  </div>
-
-                  <div className="mb-6 relative z-10">
-                    <p className="text-4xl font-black text-white tracking-tighter shadow-black/50 drop-shadow-md">
-                      ${wallet.balance.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 relative z-10">
-                    <button
-                      onClick={() => {
-                        const val = window.prompt("Ingresar monto a SUMAR a " + wallet.name + ":", "0");
-                        if (val && !isNaN(val)) {
-                          const newWallets = [...wallets];
-                          newWallets[idx].balance += parseFloat(val);
-                          setWallets(newWallets);
-                        }
-                      }}
-                      className="flex-1 bg-slate-800 hover:bg-emerald-500/20 text-emerald-400 font-bold py-2 rounded-xl transition-all border border-slate-700 hover:border-emerald-500/50"
-                    >+</button>
-                    <button
-                      onClick={() => {
-                        const val = window.prompt("Ingresar monto a RESTAR a " + wallet.name + ":", "0");
-                        if (val && !isNaN(val)) {
-                          const newWallets = [...wallets];
-                          newWallets[idx].balance = Math.max(0, newWallets[idx].balance - parseFloat(val));
-                          setWallets(newWallets);
-                        }
-                      }}
-                      className="flex-1 bg-slate-800 hover:bg-red-500/20 text-red-400 font-bold py-2 rounded-xl transition-all border border-slate-700 hover:border-red-500/50"
-                    >-</button>
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-6 animate-fadeUp">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Briefcase className="w-6 h-6 text-emerald-400" /> Control de Cuentas
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">Administra tus fondos por cuenta.</p>
+              </div>
+              <div className="glass-card px-4 py-2 rounded-xl">
+                <p className="text-[10px] text-slate-500 uppercase font-bold">Liquidez Total</p>
+                <p className="text-lg font-black text-emerald-400">${wallets.reduce((a, c) => a + c.balance, 0).toLocaleString()}</p>
+              </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl text-sm text-slate-400 flex items-start gap-3 mt-6">
-              <AlertCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-              <p>Tu Liquidez Total entre todas las cuentas actuales es de <strong className="text-white">${wallets.reduce((a, c) => a + c.balance, 0).toLocaleString()}</strong>. Recuerda usar el simulador de deudas en el Dashboard si decides inyectar dinero extra proveniente de tus ahorros a las deudas.</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {wallets.map((wallet, idx) => {
+                const colors = wallet.id === 'cheques' ? { gradient: 'from-blue-500/10 to-blue-900/5', border: 'border-blue-500/20 hover:border-blue-400/40', icon: 'text-blue-400', glow: 'bg-blue-500/10' } :
+                  wallet.id === 'ahorros' ? { gradient: 'from-fuchsia-500/10 to-fuchsia-900/5', border: 'border-fuchsia-500/20 hover:border-fuchsia-400/40', icon: 'text-fuchsia-400', glow: 'bg-fuchsia-500/10' } :
+                    { gradient: 'from-emerald-500/10 to-emerald-900/5', border: 'border-emerald-500/20 hover:border-emerald-400/40', icon: 'text-emerald-400', glow: 'bg-emerald-500/10' };
+
+                return (
+                  <div key={wallet.id} className={`bg-gradient-to-br ${colors.gradient} border ${colors.border} p-5 rounded-2xl relative overflow-hidden group transition-all card-hover shadow-xl`}>
+                    <div className={`absolute -right-6 -top-6 w-28 h-28 ${colors.glow} rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+
+                    <div className="flex items-center gap-2.5 mb-4 relative z-10">
+                      <div className={`w-10 h-10 rounded-xl ${colors.glow} flex items-center justify-center`}>
+                        {wallet.id === 'cheques' && <Briefcase className={`w-5 h-5 ${colors.icon}`} />}
+                        {wallet.id === 'ahorros' && <PiggyBank className={`w-5 h-5 ${colors.icon}`} />}
+                        {wallet.id === 'efectivo' && <Wallet className={`w-5 h-5 ${colors.icon}`} />}
+                      </div>
+                      <span className="font-bold text-white text-sm">{wallet.name}</span>
+                    </div>
+
+                    <div className="mb-5 relative z-10">
+                      <p className="text-3xl font-black text-white tracking-tighter">
+                        ${wallet.balance.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 relative z-10">
+                      <button
+                        onClick={() => {
+                          const val = window.prompt(`Sumar a ${wallet.name}:`, "0");
+                          if (val && !isNaN(val)) {
+                            const newWallets = [...wallets];
+                            newWallets[idx].balance += parseFloat(val);
+                            setWallets(newWallets);
+                          }
+                        }}
+                        className="flex-1 bg-white/5 hover:bg-emerald-500/20 text-emerald-400 font-bold py-2.5 rounded-xl transition-all border border-white/10 hover:border-emerald-500/40 text-sm"
+                      >+ Agregar</button>
+                      <button
+                        onClick={() => {
+                          const val = window.prompt(`Restar de ${wallet.name}:`, "0");
+                          if (val && !isNaN(val)) {
+                            const newWallets = [...wallets];
+                            newWallets[idx].balance = Math.max(0, newWallets[idx].balance - parseFloat(val));
+                            setWallets(newWallets);
+                          }
+                        }}
+                        className="flex-1 bg-white/5 hover:bg-red-500/20 text-red-400 font-bold py-2.5 rounded-xl transition-all border border-white/10 hover:border-red-500/40 text-sm"
+                      >- Retirar</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
       </main>
 
-      <footer className="max-w-4xl mx-auto p-6 mt-8 mb-24 md:mb-8 text-center text-slate-500 text-sm">
-        <p>
-          by fernely 2026 • <a href="https://fernelydev.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 font-medium transition-colors">fernelydev.com</a>
+      <footer className="max-w-5xl mx-auto px-4 py-6 mt-8 mb-24 md:mb-8 text-center">
+        <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent mb-6"></div>
+        <p className="text-slate-600 text-xs">
+          © 2026 fernely • <a href="https://fernelydev.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-500/70 hover:text-emerald-400 font-medium transition-colors">fernelydev.com</a>
         </p>
       </footer>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-2 pb-5 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/70">
-        <div className="flex justify-around items-center">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+        <div className="flex justify-around items-center px-1 pt-1">
           {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex flex-col items-center justify-center w-full py-2 gap-1 rounded-xl transition-all ${activeTab === tab ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500'}`}
+              className={`flex flex-col items-center justify-center w-full py-2 gap-0.5 rounded-xl transition-all relative ${activeTab === tab ? 'text-emerald-400' : 'text-slate-500'}`}
             >
+              {activeTab === tab && <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-emerald-400 rounded-full"></div>}
               {tab === 'contable' && <CheckSquare className="w-5 h-5" />}
               {tab === 'dashboard' && <LayoutDashboard className="w-5 h-5" />}
               {tab === 'fechas' && <Calendar className="w-5 h-5" />}
               {tab === 'historial' && <History className="w-5 h-5" />}
               {tab === 'bolsillos' && <Briefcase className="w-5 h-5" />}
-              <span className="text-[10px] font-bold capitalize">{tab}</span>
+              <span className="text-[9px] font-bold capitalize">{tab}</span>
             </button>
           ))}
         </div>
@@ -1306,10 +1429,10 @@ const App = () => {
         if (!task) return null;
 
         return (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowPayModal(null)}>
-            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md shadow-2xl shadow-emerald-900/20 relative" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setShowPayModal(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition">
-                <X className="w-5 h-5" />
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4" onClick={() => setShowPayModal(null)}>
+            <div className="glass-card rounded-3xl p-6 w-full max-w-md shadow-2xl shadow-emerald-900/30 relative animate-fadeUp border-emerald-500/10" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setShowPayModal(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+                <X className="w-4 h-4" />
               </button>
 
               <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
@@ -1374,13 +1497,7 @@ const App = () => {
         );
       })()}
 
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
-      `}} />
+
     </div>
   );
 };

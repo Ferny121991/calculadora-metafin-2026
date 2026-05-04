@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Wallet, TrendingDown, Plane, Car, Home, Smartphone,
   Zap, Wifi, Utensils, Scissors, Heart, Gift,
@@ -16,6 +16,7 @@ import {
   db,
   doc,
   getDoc,
+  onSnapshot,
   onAuthStateChanged,
   serverTimestamp,
   setDoc,
@@ -192,12 +193,17 @@ const App = () => {
   const [syncEmail, setSyncEmail] = useState('');
   const [syncPassword, setSyncPassword] = useState('');
   const [syncStatus, setSyncStatus] = useState('Sin iniciar sesión');
+  const [cloudReady, setCloudReady] = useState(false);
+  const applyingCloudRef = useRef(false);
+  const cloudSaveTimerRef = useRef(null);
+  const lastCloudExportRef = useRef('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setSyncUser(user);
       setSyncEmail(user?.email || '');
       setSyncStatus(user ? `Conectado como ${user.email}` : 'Sin iniciar sesión');
+      setCloudReady(false);
     });
 
     return unsubscribe;
@@ -605,7 +611,7 @@ const App = () => {
     setSideHustles(sideHustles.filter(s => s.id !== id));
   }
 
-  const buildBackup = () => ({
+  const buildBackup = useCallback(() => ({
     app: 'MetaFin 2026 Pro',
     version: 2,
     exportedAt: new Date().toISOString(),
@@ -622,15 +628,16 @@ const App = () => {
       wallets,
       paymentLogs,
     }
-  });
+  }), [racha, q1Tasks, q2Tasks, incomes, expenses, debts, sideHustles, achievements, history, wallets, paymentLogs]);
 
-  const applyBackup = (backup) => {
+  const applyBackup = (backup, options = {}) => {
     const data = backup?.data || backup;
     if (!data || !Array.isArray(data.incomes) || !Array.isArray(data.expenses) || !Array.isArray(data.debts)) {
-      alert('Este archivo no parece ser un backup válido de MetaFin.');
+      if (!options.silent) alert('Este archivo no parece ser un backup válido de MetaFin.');
       return;
     }
 
+    if (options.silent) applyingCloudRef.current = true;
     setRacha(Number(data.racha) || 0);
     setQ1Tasks(Array.isArray(data.q1Tasks) ? data.q1Tasks : DEFAULT_Q1);
     setQ2Tasks(Array.isArray(data.q2Tasks) ? data.q2Tasks : DEFAULT_Q2);
@@ -647,7 +654,12 @@ const App = () => {
     setHistory(Array.isArray(data.history) ? data.history : []);
     setWallets(Array.isArray(data.wallets) ? data.wallets : DEFAULT_WALLETS);
     setPaymentLogs(Array.isArray(data.paymentLogs) ? data.paymentLogs : []);
-    alert('Backup restaurado correctamente.');
+    if (options.silent) {
+      window.setTimeout(() => {
+        applyingCloudRef.current = false;
+      }, 0);
+    }
+    if (!options.silent) alert('Backup restaurado correctamente.');
   };
 
   const exportBackup = () => {
@@ -702,6 +714,58 @@ const App = () => {
     setWhatIfInput('');
   };
 
+  useEffect(() => {
+    if (!syncUser) return undefined;
+
+    setSyncStatus('Sincronizando con la nube...');
+    const userDoc = doc(db, 'users', syncUser.uid);
+    const unsubscribe = onSnapshot(userDoc, (snapshot) => {
+      if (!snapshot.exists()) {
+        setCloudReady(true);
+        setSyncStatus('Cuenta conectada. Aún no hay backup en la nube; se guardará automáticamente.');
+        return;
+      }
+
+      const remoteBackup = snapshot.data().backup;
+      const remoteExportedAt = remoteBackup?.exportedAt || '';
+      if (remoteExportedAt && remoteExportedAt !== lastCloudExportRef.current) {
+        lastCloudExportRef.current = remoteExportedAt;
+        applyBackup(remoteBackup, { silent: true });
+        setSyncStatus(`Datos cargados de la nube: ${new Date(remoteExportedAt).toLocaleString()}`);
+      }
+      setCloudReady(true);
+    }, (error) => {
+      setCloudReady(false);
+      setSyncStatus(explainFirebaseError(error));
+    });
+
+    return unsubscribe;
+  }, [syncUser]);
+
+  useEffect(() => {
+    if (!syncUser || !cloudReady || applyingCloudRef.current) return undefined;
+
+    if (cloudSaveTimerRef.current) window.clearTimeout(cloudSaveTimerRef.current);
+    cloudSaveTimerRef.current = window.setTimeout(async () => {
+      try {
+        const backup = buildBackup();
+        lastCloudExportRef.current = backup.exportedAt;
+        await setDoc(doc(db, 'users', syncUser.uid), {
+          backup,
+          updatedAt: serverTimestamp(),
+          email: syncUser.email,
+        }, { merge: true });
+        setSyncStatus(`Autosync guardado: ${new Date().toLocaleTimeString()}`);
+      } catch (error) {
+        setSyncStatus(explainFirebaseError(error));
+      }
+    }, 1200);
+
+    return () => {
+      if (cloudSaveTimerRef.current) window.clearTimeout(cloudSaveTimerRef.current);
+    };
+  }, [syncUser, cloudReady, buildBackup, racha, q1Tasks, q2Tasks, incomes, expenses, debts, sideHustles, achievements, history, wallets, paymentLogs]);
+
   const explainFirebaseError = (error) => {
     const code = error?.code || '';
     if (code.includes('operation-not-allowed')) {
@@ -741,8 +805,10 @@ const App = () => {
 
     try {
       setSyncStatus('Guardando backup en la nube...');
+      const backup = buildBackup();
+      lastCloudExportRef.current = backup.exportedAt;
       await setDoc(doc(db, 'users', syncUser.uid), {
-        backup: buildBackup(),
+        backup,
         updatedAt: serverTimestamp(),
         email: syncUser.email,
       }, { merge: true });
@@ -765,7 +831,7 @@ const App = () => {
         setSyncStatus('No hay backup guardado para esta cuenta todavía.');
         return;
       }
-      applyBackup(snapshot.data().backup);
+      applyBackup(snapshot.data().backup, { silent: true });
       setSyncStatus('Backup cargado desde la nube.');
     } catch (error) {
       setSyncStatus(explainFirebaseError(error));

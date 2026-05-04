@@ -10,6 +10,7 @@ import {
   doc,
   getDoc,
   getFirestore,
+  onSnapshot,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
@@ -31,6 +32,7 @@ export {
   createUserWithEmailAndPassword,
   doc,
   getDoc,
+  onSnapshot,
   onAuthStateChanged,
   serverTimestamp,
   setDoc,

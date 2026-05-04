@@ -5,10 +5,23 @@ import {
   Target, DollarSign, Calendar, LayoutDashboard, CheckSquare, Square,
   Trophy, Flame, Sparkles, Shield, RefreshCw, PlusCircle, AlertCircle,
   Edit3, ArrowRight, History, Download, PiggyBank, Briefcase, CreditCard,
-  PieChart as PieChartIcon, Activity, Clock, X, Check, Trash2
+  PieChart as PieChartIcon, Activity, Clock, X, Check, Trash2,
+  Settings, Upload, FileDown, RotateCcw, Cloud, Database, Save
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import {
+  auth,
+  createUserWithEmailAndPassword,
+  db,
+  doc,
+  getDoc,
+  onAuthStateChanged,
+  serverTimestamp,
+  setDoc,
+  signInWithEmailAndPassword,
+  signOut,
+} from './firebaseClient';
 
 // --- Default Data ---
 const DEFAULT_INCOMES = [
@@ -115,6 +128,15 @@ const parseMoneyInput = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const APP_TABS = [
+  { id: 'contable', label: 'Contable', icon: CheckSquare },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'fechas', label: 'Fechas', icon: Calendar },
+  { id: 'historial', label: 'Historial', icon: History },
+  { id: 'bolsillos', label: 'Bolsillos', icon: Briefcase },
+  { id: 'ajustes', label: 'Ajustes', icon: Settings },
+];
+
 const App = () => {
   const [activeTab, setActiveTab] = useState('contable');
 
@@ -166,6 +188,20 @@ const App = () => {
   // --- Edit Payment Log Modal ---
   const [editPayLog, setEditPayLog] = useState(null); // payment log object
   const [editPayLogAmount, setEditPayLogAmount] = useState('');
+  const [syncUser, setSyncUser] = useState(null);
+  const [syncEmail, setSyncEmail] = useState('');
+  const [syncPassword, setSyncPassword] = useState('');
+  const [syncStatus, setSyncStatus] = useState('Sin iniciar sesión');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setSyncUser(user);
+      setSyncEmail(user?.email || '');
+      setSyncStatus(user ? `Conectado como ${user.email}` : 'Sin iniciar sesión');
+    });
+
+    return unsubscribe;
+  }, []);
 
   const openEditModal = (config) => {
     setEditModal(config);
@@ -298,6 +334,26 @@ const App = () => {
 
   const payoffDatesMemo = React.useMemo(() => calculatePayoffDates(debts, 0), [calculatePayoffDates, debts]);
   const whatIfDatesMemo = React.useMemo(() => calculatePayoffDates(debts, whatIfExtra), [calculatePayoffDates, debts, whatIfExtra]);
+  const debtInsights = debts.map((debt, index) => {
+    const monthlyInterest = debt.balance * ((debt.apr || 0) / 100 / 12);
+    const minimumPayment = [...q1Tasks, ...q2Tasks]
+      .filter(t => t.type === 'debt-min' && t.debtId === debt.id)
+      .reduce((acc, task) => acc + task.amount, 0);
+
+    return {
+      ...debt,
+      order: index + 1,
+      monthlyInterest,
+      minimumPayment,
+      isActive: activeDebt.id === debt.id,
+      payoffDate: payoffDatesMemo[debt.id] || 'Sin fecha',
+    };
+  });
+  const totalMonthlyInterest = debtInsights.reduce((acc, debt) => acc + debt.monthlyInterest, 0);
+  const expenseRatio = totalIncome > 0 ? Math.min(100, (totalExpense / totalIncome) * 100) : 0;
+  const recommendedMove = activeDebt
+    ? `Ataca ${activeDebt.name} con ${formatMoney(poderAtaqueActiva)} este mes.`
+    : 'Todas las deudas están saldadas.';
 
   // Check achievements
   useEffect(() => {
@@ -549,6 +605,198 @@ const App = () => {
     setSideHustles(sideHustles.filter(s => s.id !== id));
   }
 
+  const buildBackup = () => ({
+    app: 'MetaFin 2026 Pro',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    data: {
+      racha,
+      q1Tasks,
+      q2Tasks,
+      incomes,
+      expenses,
+      debts,
+      sideHustles,
+      achievements,
+      history,
+      wallets,
+      paymentLogs,
+    }
+  });
+
+  const applyBackup = (backup) => {
+    const data = backup?.data || backup;
+    if (!data || !Array.isArray(data.incomes) || !Array.isArray(data.expenses) || !Array.isArray(data.debts)) {
+      alert('Este archivo no parece ser un backup válido de MetaFin.');
+      return;
+    }
+
+    setRacha(Number(data.racha) || 0);
+    setQ1Tasks(Array.isArray(data.q1Tasks) ? data.q1Tasks : DEFAULT_Q1);
+    setQ2Tasks(Array.isArray(data.q2Tasks) ? data.q2Tasks : DEFAULT_Q2);
+    setIncomes(data.incomes);
+    setExpenses(data.expenses);
+    setDebts(data.debts);
+    setSideHustles(Array.isArray(data.sideHustles) ? data.sideHustles : []);
+    setAchievements(data.achievements || {
+      firstQPerfect: false,
+      debtDestroyer: false,
+      saverMonth: false,
+      streak3Months: false
+    });
+    setHistory(Array.isArray(data.history) ? data.history : []);
+    setWallets(Array.isArray(data.wallets) ? data.wallets : DEFAULT_WALLETS);
+    setPaymentLogs(Array.isArray(data.paymentLogs) ? data.paymentLogs : []);
+    alert('Backup restaurado correctamente.');
+  };
+
+  const exportBackup = () => {
+    const backup = buildBackup();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `metafin-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const importBackupFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        applyBackup(JSON.parse(String(reader.result || '{}')));
+      } catch {
+        alert('No pude leer ese archivo. Asegúrate de subir un JSON exportado desde MetaFin.');
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const resetAllData = () => {
+    if (!window.confirm('¿Seguro que quieres reiniciar todos los datos locales? Esto borra pagos, historial, cuentas y progreso guardado en este navegador.')) return;
+
+    setRacha(0);
+    setQ1Tasks(DEFAULT_Q1);
+    setQ2Tasks(DEFAULT_Q2);
+    setIncomes(DEFAULT_INCOMES);
+    setExpenses(DEFAULT_EXPENSES);
+    setDebts(DEFAULT_DEBTS);
+    setSideHustles([]);
+    setAchievements({
+      firstQPerfect: false,
+      debtDestroyer: false,
+      saverMonth: false,
+      streak3Months: false
+    });
+    setHistory([]);
+    setWallets(DEFAULT_WALLETS);
+    setPaymentLogs([]);
+    setWhatIfExtra(0);
+    setWhatIfInput('');
+  };
+
+  const explainFirebaseError = (error) => {
+    const code = error?.code || '';
+    if (code.includes('operation-not-allowed')) {
+      return 'Email/password no está habilitado en Firebase Auth. Actívalo en Firebase Console > Authentication > Sign-in method.';
+    }
+    if (code.includes('invalid-credential') || code.includes('wrong-password')) return 'Email o contraseña incorrectos.';
+    if (code.includes('email-already-in-use')) return 'Ese email ya tiene cuenta. Usa Entrar.';
+    if (code.includes('weak-password')) return 'La contraseña debe tener al menos 6 caracteres.';
+    if (code.includes('permission-denied')) return 'Firestore rechazó la operación. Revisa que las reglas estén desplegadas.';
+    return error?.message || 'No se pudo completar la operación.';
+  };
+
+  const cloudSignIn = async (mode) => {
+    if (!syncEmail || !syncPassword) {
+      setSyncStatus('Escribe email y contraseña.');
+      return;
+    }
+
+    try {
+      setSyncStatus(mode === 'register' ? 'Creando cuenta...' : 'Entrando...');
+      if (mode === 'register') {
+        await createUserWithEmailAndPassword(auth, syncEmail, syncPassword);
+      } else {
+        await signInWithEmailAndPassword(auth, syncEmail, syncPassword);
+      }
+      setSyncPassword('');
+    } catch (error) {
+      setSyncStatus(explainFirebaseError(error));
+    }
+  };
+
+  const cloudSave = async () => {
+    if (!syncUser) {
+      setSyncStatus('Inicia sesión antes de guardar en la nube.');
+      return;
+    }
+
+    try {
+      setSyncStatus('Guardando backup en la nube...');
+      await setDoc(doc(db, 'users', syncUser.uid), {
+        backup: buildBackup(),
+        updatedAt: serverTimestamp(),
+        email: syncUser.email,
+      }, { merge: true });
+      setSyncStatus(`Guardado en la nube: ${new Date().toLocaleString()}`);
+    } catch (error) {
+      setSyncStatus(explainFirebaseError(error));
+    }
+  };
+
+  const cloudLoad = async () => {
+    if (!syncUser) {
+      setSyncStatus('Inicia sesión antes de cargar desde la nube.');
+      return;
+    }
+
+    try {
+      setSyncStatus('Cargando backup de la nube...');
+      const snapshot = await getDoc(doc(db, 'users', syncUser.uid));
+      if (!snapshot.exists()) {
+        setSyncStatus('No hay backup guardado para esta cuenta todavía.');
+        return;
+      }
+      applyBackup(snapshot.data().backup);
+      setSyncStatus('Backup cargado desde la nube.');
+    } catch (error) {
+      setSyncStatus(explainFirebaseError(error));
+    }
+  };
+
+  const openItemEdit = (type, id, field, label, inputType = 'number') => {
+    const config = {
+      income: { list: incomes, setList: setIncomes },
+      expense: { list: expenses, setList: setExpenses },
+      debt: { list: debts, setList: setDebts },
+      wallet: { list: wallets, setList: setWallets },
+    }[type];
+    const item = config?.list.find(x => x.id === id);
+    if (!item) return;
+
+    openEditModal({
+      type: `${type}-${field}`,
+      title: label,
+      subtitle: item.name,
+      value: item[field] ?? '',
+      inputType,
+      placeholder: inputType === 'number' ? '0.00' : 'Escribe aquí',
+      onConfirm: (val) => {
+        const nextValue = inputType === 'number' ? parseMoneyInput(val) : val.trim();
+        if (inputType === 'number' && nextValue < 0) return;
+        config.setList(config.list.map(x => x.id === id ? { ...x, [field]: nextValue } : x));
+      }
+    });
+  };
+
   const updateDueDay = (type, id) => {
     let item;
     let list, setList;
@@ -719,20 +967,19 @@ const App = () => {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex glass p-1 rounded-xl w-auto gap-0.5 shadow-inner shadow-white/5">
-            {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
+            {APP_TABS.map((tab) => {
+              const TabIcon = tab.icon;
+              return (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all capitalize ${activeTab === tab ? 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${activeTab === tab.id ? 'bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
               >
-                {tab === 'contable' && <CheckSquare className="w-3.5 h-3.5" />}
-                {tab === 'dashboard' && <LayoutDashboard className="w-3.5 h-3.5" />}
-                {tab === 'fechas' && <Calendar className="w-3.5 h-3.5" />}
-                {tab === 'historial' && <History className="w-3.5 h-3.5" />}
-                {tab === 'bolsillos' && <Briefcase className="w-3.5 h-3.5" />}
-                {tab}
+                <TabIcon className="w-3.5 h-3.5" />
+                {tab.label}
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </header>
@@ -998,6 +1245,61 @@ const App = () => {
                     </div>
                   )
                 })}
+              </div>
+            </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="glass-card p-5 rounded-2xl lg:col-span-2">
+                <h2 className="text-lg font-black text-white flex items-center gap-2 mb-4">
+                  <Sparkles className="w-5 h-5 text-emerald-400" />
+                  Recomendación Inteligente
+                </h2>
+                <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4 mb-4">
+                  <p className="text-sm font-bold text-emerald-200">{recommendedMove}</p>
+                  <p className="text-xs text-emerald-100/70 mt-1">
+                    Interés estimado del mes: {formatMoney(totalMonthlyInterest)}. Mantener el ataque evita que el interés gane terreno.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {debtInsights.map(debt => (
+                    <div key={debt.id} className={`rounded-xl border p-3 ${debt.isActive ? 'bg-indigo-500/10 border-indigo-400/30' : 'bg-slate-950/40 border-slate-700/40'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-white truncate">{debt.name}</p>
+                        <span className="text-[10px] font-black text-slate-400">#{debt.order}</span>
+                      </div>
+                      <p className="text-xl font-black text-slate-100 mt-2">{formatMoney(debt.balance)}</p>
+                      <div className="mt-3 space-y-1 text-[10px] text-slate-400">
+                        <div className="flex justify-between"><span>Interés/mes</span><strong className="text-rose-300">{formatMoney(debt.monthlyInterest)}</strong></div>
+                        <div className="flex justify-between"><span>Mínimo</span><strong className="text-slate-200">{formatMoney(debt.minimumPayment)}</strong></div>
+                        <div className="flex justify-between"><span>Libre aprox.</span><strong className="text-emerald-300">{debt.payoffDate}</strong></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="glass-card p-5 rounded-2xl">
+                <h2 className="text-lg font-black text-white flex items-center gap-2 mb-4">
+                  <Activity className="w-5 h-5 text-cyan-400" />
+                  Salud del Mes
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold text-slate-400 mb-1">
+                      <span>Gastos vs ingresos</span>
+                      <span>{expenseRatio.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-700">
+                      <div className={`h-full rounded-full ${expenseRatio > 85 ? 'bg-rose-400' : 'bg-cyan-400'}`} style={{ width: `${expenseRatio}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="mini-stat"><span>Libre</span><strong>{formatMoney(monthlySurplus)}</strong></div>
+                    <div className="mini-stat"><span>Deudas</span><strong>{formatMoney(poderTotalDeudas)}</strong></div>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Meta práctica: mantener gastos por debajo de 80% e inyectar el sobrante a la deuda activa.
+                  </p>
+                </div>
               </div>
             </section>
 
@@ -1292,6 +1594,43 @@ const App = () => {
                 }
               });
               const uniqueUpcoming = Array.from(seen.values()).sort((a, b) => a.diffDays - b.diffDays);
+              const buildDueItem = (item, kind) => {
+                const dueDate = new Date();
+                const day = Number(item.dueDay) || 1;
+                dueDate.setDate(Math.min(day, 28));
+                dueDate.setHours(9, 0, 0, 0);
+                if (dueDate < new Date()) dueDate.setMonth(dueDate.getMonth() + 1);
+                const diffDays = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+                return {
+                  id: `${kind}-${item.id}`,
+                  name: item.name,
+                  amount: item.amount ?? item.balance,
+                  nextDate: dueDate,
+                  diffDays,
+                  kind,
+                  frequency: 'mensual'
+                };
+              };
+              const calendarItems = [
+                ...uniqueUpcoming.map(item => ({
+                  id: `log-${item.id}`,
+                  name: taskNameMap[item.taskId] || item.taskId,
+                  amount: item.amount,
+                  nextDate: item.nextDate,
+                  diffDays: item.diffDays,
+                  kind: 'Pago registrado',
+                  frequency: item.frequency,
+                })),
+                ...incomes.map(item => buildDueItem(item, 'Ingreso')),
+                ...expenses.map(item => buildDueItem(item, 'Gasto')),
+                ...debts.map(item => buildDueItem(item, 'Deuda')),
+              ].sort((a, b) => a.diffDays - b.diffDays);
+              const calendarGroups = [
+                { title: 'Hoy y urgente', color: 'text-red-300', items: calendarItems.filter(item => item.diffDays <= 2) },
+                { title: 'Próximos 7 días', color: 'text-amber-300', items: calendarItems.filter(item => item.diffDays > 2 && item.diffDays <= 7) },
+                { title: 'Próximos 30 días', color: 'text-cyan-300', items: calendarItems.filter(item => item.diffDays > 7 && item.diffDays <= 30) },
+                { title: 'Más adelante', color: 'text-slate-300', items: calendarItems.filter(item => item.diffDays > 30 && item.diffDays <= 60) },
+              ];
 
               // Frequency labels
               const freqLabel = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' };
@@ -1299,14 +1638,14 @@ const App = () => {
               return (
                 <div className="glass-card p-4 rounded-xl">
                   <h3 className="text-sm font-bold text-amber-300 flex items-center gap-2 mb-3">
-                    <Clock className="w-4 h-4" /> Próximos Pagos Programados
+                    <Clock className="w-4 h-4" /> Próximos Pagos Programados <span className="ml-auto text-[10px] text-slate-500">{calendarGroups.filter(group => group.items.length > 0).length} grupos</span>
                   </h3>
-                  {uniqueUpcoming.length === 0 ? (
+                  {calendarItems.length === 0 ? (
                     <p className="text-sm text-slate-500 text-center py-4">No hay pagos programados aún. Marca tareas como pagadas para ver aquí la próxima fecha.</p>
                   ) : (
                     <div className="space-y-2 stagger-children">
-                      {uniqueUpcoming.map((item, idx) => {
-                        const taskName = taskNameMap[item.taskId] || item.taskId;
+                      {calendarItems.map((item, idx) => {
+                        const taskName = item.name || taskNameMap[item.taskId] || item.taskId;
                         return (
                           <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${item.diffDays <= 2 ? 'bg-red-500/10 border-red-500/30' : item.diffDays <= 7 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-slate-800/50 border-slate-700/30'}`}>
                             <div className="flex items-center gap-3">
@@ -1315,7 +1654,7 @@ const App = () => {
                               </div>
                               <div>
                                 <p className="text-sm font-medium text-white">{taskName}</p>
-                                <p className="text-[10px] text-slate-500">{formatDateShort(item.nextPayDate)} · <span className="text-slate-400">{freqLabel[item.frequency] || item.frequency}</span></p>
+                                <p className="text-[10px] text-slate-500">{formatDateShort(item.nextDate || item.nextPayDate)} · <span className="text-slate-400">{item.kind || 'Pago registrado'}</span> · {freqLabel[item.frequency] || item.frequency}</p>
                               </div>
                             </div>
                             <span className="text-sm font-bold text-slate-300">{formatMoney(item.amount)}</span>
@@ -1525,6 +1864,138 @@ const App = () => {
           </div>
         )}
 
+        {/* ================= VISTA: AJUSTES ================= */}
+        {activeTab === 'ajustes' && (
+          <div className="space-y-6 animate-fadeUp">
+            <div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Settings className="w-6 h-6 text-cyan-400" /> Ajustes y Respaldo
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">Edita tus números base, crea backups y prepara sincronización.</p>
+            </div>
+
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <button onClick={exportBackup} className="glass-card p-5 rounded-2xl text-left hover:border-emerald-400/40 transition">
+                <FileDown className="w-6 h-6 text-emerald-400 mb-3" />
+                <h3 className="font-black text-white">Exportar backup</h3>
+                <p className="text-xs text-slate-500 mt-1">Descarga todos tus datos en JSON.</p>
+              </button>
+              <label className="glass-card p-5 rounded-2xl text-left hover:border-cyan-400/40 transition cursor-pointer">
+                <Upload className="w-6 h-6 text-cyan-400 mb-3" />
+                <h3 className="font-black text-white">Restaurar backup</h3>
+                <p className="text-xs text-slate-500 mt-1">Importa un backup de MetaFin.</p>
+                <input type="file" accept="application/json,.json" onChange={importBackupFile} className="hidden" />
+              </label>
+              <button onClick={resetAllData} className="glass-card p-5 rounded-2xl text-left hover:border-red-400/40 transition">
+                <RotateCcw className="w-6 h-6 text-red-400 mb-3" />
+                <h3 className="font-black text-white">Reset local</h3>
+                <p className="text-xs text-slate-500 mt-1">Reinicia este navegador a valores iniciales.</p>
+              </button>
+            </section>
+
+            <section className="glass-card p-5 rounded-2xl">
+              <h3 className="font-black text-white flex items-center gap-2 mb-4">
+                <Database className="w-5 h-5 text-indigo-400" /> Datos base editables
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {[
+                  { title: 'Ingresos', type: 'income', items: incomes, color: 'text-emerald-300' },
+                  { title: 'Gastos', type: 'expense', items: expenses, color: 'text-rose-300' },
+                  { title: 'Deudas', type: 'debt', items: debts, color: 'text-amber-300' },
+                ].map(section => (
+                  <div key={section.type} className="rounded-2xl bg-slate-950/35 border border-slate-700/50 p-3">
+                    <h4 className={`text-sm font-black mb-3 ${section.color}`}>{section.title}</h4>
+                    <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                      {section.items.map(item => (
+                        <div key={item.id} className="rounded-xl bg-slate-900/70 border border-slate-700/40 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <button onClick={() => openItemEdit(section.type, item.id, 'name', 'Editar nombre', 'text')} className="text-sm font-bold text-white truncate text-left hover:text-emerald-300">
+                              {item.name}
+                            </button>
+                            <button onClick={() => updateDueDay(section.type, item.id)} className="text-[10px] font-black text-slate-300 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1">
+                              Día {item.dueDay || '-'}
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <button onClick={() => openItemEdit(section.type, item.id, section.type === 'debt' ? 'balance' : 'amount', 'Editar monto')} className="text-lg font-black text-slate-100 hover:text-cyan-300">
+                              {formatMoney(item.amount ?? item.balance)}
+                            </button>
+                            {section.type === 'debt' && (
+                              <button onClick={() => openItemEdit(section.type, item.id, 'apr', 'Editar APR')} className="text-[10px] font-bold text-rose-300 bg-rose-500/10 px-2 py-1 rounded-lg border border-rose-500/20">
+                                {item.apr}% APR
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="glass-card p-5 rounded-2xl border-cyan-500/20">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-black text-white flex items-center gap-2">
+                    <Cloud className="w-5 h-5 text-cyan-400" /> Sincronización Firebase
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Guarda y recupera tu backup desde Firestore usando tu propia cuenta.
+                  </p>
+                </div>
+                <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/20 px-4 py-3 text-xs text-cyan-200 font-bold max-w-md">
+                  {syncStatus}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 mt-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="email"
+                    value={syncEmail}
+                    onChange={(e) => setSyncEmail(e.target.value)}
+                    placeholder="email"
+                    disabled={Boolean(syncUser)}
+                    className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-60"
+                  />
+                  <input
+                    type="password"
+                    value={syncPassword}
+                    onChange={(e) => setSyncPassword(e.target.value)}
+                    placeholder="contraseña"
+                    disabled={Boolean(syncUser)}
+                    className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-60"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!syncUser ? (
+                    <>
+                      <button onClick={() => cloudSignIn('login')} className="inline-flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-sm transition">
+                        <Cloud className="w-4 h-4" /> Entrar
+                      </button>
+                      <button onClick={() => cloudSignIn('register')} className="inline-flex items-center gap-2 bg-white/8 hover:bg-white/12 text-slate-100 border border-white/10 font-bold px-4 py-2.5 rounded-xl text-sm transition">
+                        <Save className="w-4 h-4" /> Crear cuenta
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={cloudSave} className="inline-flex items-center gap-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-sm transition">
+                        <Save className="w-4 h-4" /> Guardar nube
+                      </button>
+                      <button onClick={cloudLoad} className="inline-flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-sm transition">
+                        <Download className="w-4 h-4" /> Cargar nube
+                      </button>
+                      <button onClick={() => signOut(auth)} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition">
+                        Salir
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
       </main>
 
       <footer className="max-w-5xl mx-auto px-4 py-6 mt-8 mb-24 md:mb-8 text-center">
@@ -1537,21 +2008,20 @@ const App = () => {
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
         <div className="flex justify-around items-center px-1 pt-1">
-          {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
+          {APP_TABS.map((tab) => {
+            const TabIcon = tab.icon;
+            return (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex flex-col items-center justify-center w-full py-2 gap-0.5 rounded-xl transition-all relative ${activeTab === tab ? 'text-emerald-400' : 'text-slate-500'}`}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center justify-center w-full py-2 gap-0.5 rounded-xl transition-all relative ${activeTab === tab.id ? 'text-emerald-400' : 'text-slate-500'}`}
             >
-              {activeTab === tab && <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-emerald-400 rounded-full"></div>}
-              {tab === 'contable' && <CheckSquare className="w-5 h-5" />}
-              {tab === 'dashboard' && <LayoutDashboard className="w-5 h-5" />}
-              {tab === 'fechas' && <Calendar className="w-5 h-5" />}
-              {tab === 'historial' && <History className="w-5 h-5" />}
-              {tab === 'bolsillos' && <Briefcase className="w-5 h-5" />}
-              <span className="text-[9px] font-bold capitalize">{tab}</span>
+              {activeTab === tab.id && <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-emerald-400 rounded-full"></div>}
+              <TabIcon className="w-5 h-5" />
+              <span className="text-[8px] font-bold">{tab.label}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 

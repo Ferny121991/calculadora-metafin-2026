@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "calc-metafin-2026-pro"
+  },
   "targets": {},
   "etags": {}
 }

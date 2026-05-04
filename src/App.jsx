@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Wallet, TrendingDown, Plane, Car, Home, Smartphone,
   Zap, Wifi, Utensils, Scissors, Heart, Gift,
@@ -8,7 +8,7 @@ import {
   PieChart as PieChartIcon, Activity, Clock, X, Check, Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts';
 
 // --- Default Data ---
 const DEFAULT_INCOMES = [
@@ -85,9 +85,34 @@ const DEFAULT_WALLETS = [
 
 // --- Helper Functions for Local Storage ---
 const loadData = (key, defaultData) => {
-  const saved = localStorage.getItem(key);
-  if (saved) return JSON.parse(saved);
-  return defaultData;
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : defaultData;
+  } catch (error) {
+    console.warn(`No se pudo cargar ${key}; usando valores iniciales.`, error);
+    return defaultData;
+  }
+};
+
+const saveData = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(`No se pudo guardar ${key}.`, error);
+  }
+};
+
+const formatMoney = (value) => (
+  new Intl.NumberFormat('es-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0)
+);
+
+const parseMoneyInput = (value) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const App = () => {
@@ -162,7 +187,7 @@ const App = () => {
 
   const confirmEditPaymentLog = () => {
     if (!editPayLog) return;
-    const newAmount = parseFloat(editPayLogAmount) || 0;
+    const newAmount = parseMoneyInput(editPayLogAmount);
     setPaymentLogs(prev => prev.map(l => l.id === editPayLog.id ? { ...l, amount: newAmount } : l));
     setEditPayLog(null);
   };
@@ -173,17 +198,17 @@ const App = () => {
   };
 
   // Save to local storage whenever state changes
-  useEffect(() => { localStorage.setItem('meta2026_racha', JSON.stringify(racha)); }, [racha]);
-  useEffect(() => { localStorage.setItem('meta2026_q1_v2', JSON.stringify(q1Tasks)); }, [q1Tasks]);
-  useEffect(() => { localStorage.setItem('meta2026_q2_v2', JSON.stringify(q2Tasks)); }, [q2Tasks]);
-  useEffect(() => { localStorage.setItem('meta2026_incomes', JSON.stringify(incomes)); }, [incomes]);
-  useEffect(() => { localStorage.setItem('meta2026_expenses', JSON.stringify(expenses)); }, [expenses]);
-  useEffect(() => { localStorage.setItem('meta2026_debts_v2', JSON.stringify(debts)); }, [debts]);
-  useEffect(() => { localStorage.setItem('meta2026_sideHustles', JSON.stringify(sideHustles)); }, [sideHustles]);
-  useEffect(() => { localStorage.setItem('meta2026_achievements', JSON.stringify(achievements)); }, [achievements]);
-  useEffect(() => { localStorage.setItem('meta2026_history', JSON.stringify(history)); }, [history]);
-  useEffect(() => { localStorage.setItem('meta2026_wallets', JSON.stringify(wallets)); }, [wallets]);
-  useEffect(() => { localStorage.setItem('meta2026_paymentLogs', JSON.stringify(paymentLogs)); }, [paymentLogs]);
+  useEffect(() => { saveData('meta2026_racha', racha); }, [racha]);
+  useEffect(() => { saveData('meta2026_q1_v2', q1Tasks); }, [q1Tasks]);
+  useEffect(() => { saveData('meta2026_q2_v2', q2Tasks); }, [q2Tasks]);
+  useEffect(() => { saveData('meta2026_incomes', incomes); }, [incomes]);
+  useEffect(() => { saveData('meta2026_expenses', expenses); }, [expenses]);
+  useEffect(() => { saveData('meta2026_debts_v2', debts); }, [debts]);
+  useEffect(() => { saveData('meta2026_sideHustles', sideHustles); }, [sideHustles]);
+  useEffect(() => { saveData('meta2026_achievements', achievements); }, [achievements]);
+  useEffect(() => { saveData('meta2026_history', history); }, [history]);
+  useEffect(() => { saveData('meta2026_wallets', wallets); }, [wallets]);
+  useEffect(() => { saveData('meta2026_paymentLogs', paymentLogs); }, [paymentLogs]);
 
 
   // ================= CALCS =================
@@ -193,6 +218,12 @@ const App = () => {
   const activeDebt = debts.find(d => d.balance > 0) || debts[debts.length - 1]; // Fallback to last if all paid
   const totalDebtBalance = debts.reduce((acc, curr) => acc + curr.balance, 0);
   const deudaTotalInicial = debts.reduce((acc, curr) => acc + curr.initial, 0);
+  const debtProgress = deudaTotalInicial > 0
+    ? Math.min(100, Math.max(0, ((deudaTotalInicial - totalDebtBalance) / deudaTotalInicial) * 100))
+    : 100;
+  const monthlySurplus = totalIncome - totalExpense;
+  const q1Progress = Math.round((q1Tasks.filter(t => t.done).length / q1Tasks.length) * 100);
+  const q2Progress = Math.round((q2Tasks.filter(t => t.done).length / q2Tasks.length) * 100);
 
   const totalSideHustle = sideHustles.reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -208,7 +239,7 @@ const App = () => {
 
   const poderTotalDeudas = totalMinimosOtras + poderAtaqueActiva;
 
-  const calculatePayoffDates = (baseDebts, extraSimulator = 0) => {
+  const calculatePayoffDates = useCallback((baseDebts, extraSimulator = 0) => {
     let result = {};
     let tempDebts = baseDebts.map(d => ({ ...d }));
     let monthsElapsed = 0;
@@ -263,10 +294,10 @@ const App = () => {
       });
     }
     return result;
-  };
+  }, [q1Tasks, q2Tasks, totalSideHustle]);
 
-  const payoffDatesMemo = React.useMemo(() => calculatePayoffDates(debts, 0), [debts, q1Tasks, q2Tasks, totalSideHustle]);
-  const whatIfDatesMemo = React.useMemo(() => calculatePayoffDates(debts, whatIfExtra), [debts, q1Tasks, q2Tasks, totalSideHustle, whatIfExtra]);
+  const payoffDatesMemo = React.useMemo(() => calculatePayoffDates(debts, 0), [calculatePayoffDates, debts]);
+  const whatIfDatesMemo = React.useMemo(() => calculatePayoffDates(debts, whatIfExtra), [calculatePayoffDates, debts, whatIfExtra]);
 
   // Check achievements
   useEffect(() => {
@@ -354,7 +385,7 @@ const App = () => {
   const confirmPayment = () => {
     if (!showPayModal) return;
     const { quincena, taskId } = showPayModal;
-    const actualAmount = parseFloat(payModalAmount) || 0;
+    const actualAmount = parseMoneyInput(payModalAmount);
     const nextDate = calcNextPayDate(payModalFreq);
 
     // Guardar log de pago
@@ -378,8 +409,6 @@ const App = () => {
       setQ2Tasks(newTasks);
     }
 
-    const allTasks = quincena === 1 ? newTasks : q1Tasks;
-    const allTasks2 = quincena === 2 ? newTasks : q2Tasks;
     const isQ1Done = (quincena === 1 ? newTasks : q1Tasks).every(t => t.done);
     const isQ2Done = (quincena === 2 ? newTasks : q2Tasks).every(t => t.done);
     const wasQ1Done = q1Tasks.every(t => t.done);
@@ -407,7 +436,7 @@ const App = () => {
       inputType: 'number',
       placeholder: '0.00',
       onConfirm: (val) => {
-        const parsed = parseFloat(val);
+        const parsed = parseMoneyInput(val);
         if (!isNaN(parsed) && parsed >= 0) {
           if (quincena === 1) {
             setQ1Tasks(q1Tasks.map(t => t.id === id ? { ...t, adelanto: parsed } : t));
@@ -508,7 +537,7 @@ const App = () => {
     setSideHustles([...sideHustles, {
       id: Date.now(),
       desc: newHustleDesc,
-      amount: parseFloat(newHustleAmount),
+      amount: parseMoneyInput(newHustleAmount),
       date: new Date().toLocaleDateString()
     }]);
     setNewHustleDesc('');
@@ -610,7 +639,7 @@ const App = () => {
                       </span>
                       {task.done && lastLog && (
                         <span className="text-[10px] text-emerald-400/70 flex items-center gap-1 mt-0.5">
-                          <Check className="w-3 h-3" /> Pagado {formatDateShort(lastLog.date)} • ${lastLog.amount}
+                          <Check className="w-3 h-3" /> Pagado {formatDateShort(lastLog.date)} • {formatMoney(lastLog.amount)}
                         </span>
                       )}
                     </div>
@@ -633,11 +662,11 @@ const App = () => {
                           ? 'text-blue-400'
                           : isSnowball ? 'text-indigo-400' : 'text-slate-300'
                         }`}>
-                        {task.type === 'income' ? '+' : '-'}${effectiveAmount}
+                        {task.type === 'income' ? '+' : '-'}{formatMoney(effectiveAmount)}
                       </span>
                       {task.adelanto > 0 && (
                         <span className={`text-[10px] mt-0.5 block font-bold ${task.adelanto > task.amount ? 'text-red-400' : 'text-emerald-500'}`}>
-                          {task.adelanto > task.amount ? '¡Sobregiro!: ' : 'Adelanto: '}${task.adelanto}
+                          {task.adelanto > task.amount ? '¡Sobregiro!: ' : 'Adelanto: '}{formatMoney(task.adelanto)}
                         </span>
                       )}
                     </div>
@@ -666,15 +695,15 @@ const App = () => {
   };
 
   return (
-    <div className={`min-h-screen text-slate-300 font-sans pb-20 transition-colors duration-1000 ${getThemeClass()}`}>
+    <div className={`app-shell min-h-screen text-slate-300 font-sans pb-20 transition-colors duration-1000 ${getThemeClass()}`}>
 
       {/* Header */}
-      <header className="glass sticky top-0 z-20 border-b border-white/5">
-        <div className="h-0.5 bg-gradient-to-r from-emerald-500 via-indigo-500 to-fuchsia-500 animate-gradient"></div>
-        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-3">
+      <header className="glass sticky top-0 z-20 border-b border-white/5 shadow-2xl shadow-slate-950/30">
+        <div className="h-0.5 bg-gradient-to-r from-emerald-400 via-cyan-400 to-amber-300 animate-gradient"></div>
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-3">
           <div>
             <h1 className="text-xl md:text-2xl font-black text-white flex items-center gap-2 tracking-tight">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-400 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-cyan-400 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
                 <Target className="w-5 h-5 text-white" />
               </div>
               Plan Financiero <span className="gradient-text">2026</span>
@@ -689,7 +718,7 @@ const App = () => {
           </div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex glass p-1 rounded-xl w-auto gap-0.5">
+          <div className="hidden md:flex glass p-1 rounded-xl w-auto gap-0.5 shadow-inner shadow-white/5">
             {['contable', 'dashboard', 'fechas', 'historial', 'bolsillos'].map((tab) => (
               <button
                 key={tab}
@@ -708,7 +737,61 @@ const App = () => {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-4 space-y-6 mt-4">
+      <main className="max-w-6xl mx-auto p-4 space-y-6 mt-4">
+
+        <section className="command-center relative overflow-hidden rounded-3xl border border-white/10 p-5 md:p-6 shadow-2xl shadow-slate-950/40">
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6 items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300/80 mb-2">Control financiero</p>
+              <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight">
+                Enfoque en {activeDebt.name}
+              </h2>
+              <p className="text-sm md:text-base text-slate-300 mt-3 max-w-2xl">
+                Tienes {formatMoney(poderAtaqueActiva)} de ataque activo y un avance total de {debtProgress.toFixed(0)}% contra tus deudas.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setActiveTab('contable')}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-300 transition"
+                >
+                  <CheckSquare className="w-4 h-4" /> Revisar quincenas
+                </button>
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white/8 px-4 py-2.5 text-sm font-bold text-slate-100 border border-white/10 hover:bg-white/12 transition"
+                >
+                  <PieChartIcon className="w-4 h-4" /> Ver progreso
+                </button>
+              </div>
+            </div>
+            <div className="hero-meter rounded-2xl border border-white/10 p-4">
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black">Deuda restante</p>
+                  <p className="text-3xl font-black text-white">{formatMoney(totalDebtBalance)}</p>
+                </div>
+                <span className="text-sm font-black text-emerald-300">{debtProgress.toFixed(0)}%</span>
+              </div>
+              <div className="h-3 rounded-full bg-slate-950/70 overflow-hidden border border-white/10">
+                <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-300 to-amber-300" style={{ width: `${debtProgress}%` }}></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <div className="mini-stat">
+                  <span>Q1</span>
+                  <strong>{q1Progress}%</strong>
+                </div>
+                <div className="mini-stat">
+                  <span>Q2</span>
+                  <strong>{q2Progress}%</strong>
+                </div>
+                <div className="mini-stat">
+                  <span>Libre</span>
+                  <strong>{formatMoney(monthlySurplus)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* ================= VISTA: MI CONTABLE ================= */}
         {activeTab === 'contable' && (
@@ -717,17 +800,17 @@ const App = () => {
             {/* NEW: Quick Stats Bar */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Ingresos', value: `$${totalIncome.toLocaleString()}`, icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-                { label: 'Gastos', value: `$${totalExpense.toLocaleString()}`, icon: <TrendingDown className="w-4 h-4" />, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
-                { label: 'Deuda Total', value: `$${totalDebtBalance.toLocaleString()}`, icon: <CreditCard className="w-4 h-4" />, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-                { label: 'Hoy', value: new Date().toLocaleDateString('es', { day: 'numeric', month: 'short' }), icon: <Calendar className="w-4 h-4" />, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+                { label: 'Ingresos', value: formatMoney(totalIncome), icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-300' },
+                { label: 'Gastos', value: formatMoney(totalExpense), icon: <TrendingDown className="w-4 h-4" />, color: 'text-rose-300' },
+                { label: 'Balance libre', value: formatMoney(monthlySurplus), icon: <PiggyBank className="w-4 h-4" />, color: monthlySurplus >= 0 ? 'text-cyan-300' : 'text-rose-300' },
+                { label: 'Hoy', value: new Date().toLocaleDateString('es', { day: 'numeric', month: 'short' }), icon: <Calendar className="w-4 h-4" />, color: 'text-amber-300' },
               ].map((stat, idx) => (
-                <div key={idx} className={`${stat.bg} border rounded-xl p-3 card-hover`}>
+                <div key={idx} className="metric-card rounded-2xl p-4 card-hover">
                   <div className={`flex items-center gap-1.5 ${stat.color} mb-1`}>
                     {stat.icon}
                     <span className="text-[10px] font-bold uppercase tracking-wider">{stat.label}</span>
                   </div>
-                  <p className="text-lg font-black text-white">{stat.value}</p>
+                  <p className="text-xl font-black text-white">{stat.value}</p>
                 </div>
               ))}
             </div>
@@ -763,16 +846,16 @@ const App = () => {
                   <Flame className="w-4 h-4 text-orange-400" /> Fuego contra {activeDebt.name}
                 </h3>
                 <p className="text-4xl md:text-5xl font-black text-emerald-400 tracking-tighter shadow-emerald-500/20 drop-shadow-lg">
-                  ${poderAtaqueActiva}
+                  {formatMoney(poderAtaqueActiva)}
                 </p>
                 <div className="mt-4 pt-4 border-t border-emerald-500/20 text-xs text-emerald-300/80 flex flex-col gap-1.5 font-medium">
                   <div className="flex justify-between items-center gap-2">
                     <span>Manteniendo otras deudas:</span>
-                    <span className="font-mono text-emerald-100">${totalMinimosOtras}</span>
+                    <span className="font-mono text-emerald-100">{formatMoney(totalMinimosOtras)}</span>
                   </div>
                   <div className="flex justify-between items-center gap-2 text-emerald-400 font-bold">
                     <span>Poder de Destrucción Total:</span>
-                    <span className="font-mono">${poderTotalDeudas}</span>
+                    <span className="font-mono">{formatMoney(poderTotalDeudas)}</span>
                   </div>
                 </div>
               </div>
@@ -808,7 +891,7 @@ const App = () => {
                       <div key={h.id} className="flex justify-between items-center text-xs bg-slate-800/50 p-2 rounded border border-slate-700/50">
                         <span className="text-slate-300 truncate pr-2">{h.desc}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-emerald-400 font-bold">+${h.amount}</span>
+                          <span className="text-emerald-400 font-bold">+{formatMoney(h.amount)}</span>
                           <button onClick={() => deleteSideHustle(h.id)} className="text-slate-500 hover:text-red-400">&times;</button>
                         </div>
                       </div>
@@ -833,8 +916,8 @@ const App = () => {
                 Misión Principal
               </h2>
               <div className="flex items-baseline gap-3 mb-6 relative z-10">
-                <span className="text-3xl font-black text-white">${totalDebtBalance.toLocaleString()}</span>
-                <span className="text-sm text-slate-500 line-through">${deudaTotalInicial.toLocaleString()}</span>
+                <span className="text-3xl font-black text-white">{formatMoney(totalDebtBalance)}</span>
+                <span className="text-sm text-slate-500 line-through">{formatMoney(deudaTotalInicial)}</span>
                 <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                   -{Math.round(((deudaTotalInicial - totalDebtBalance) / deudaTotalInicial) * 100)}%
                 </span>
@@ -869,7 +952,7 @@ const App = () => {
                                   inputType: 'number',
                                   placeholder: '0.00',
                                   onConfirm: (val) => {
-                                    const newBal = parseFloat(val);
+                                    const newBal = parseMoneyInput(val);
                                     if (!isNaN(newBal)) {
                                       setDebts(debts.map(d => d.id === debt.id ? { ...d, balance: Math.max(0, newBal) } : d));
                                     }
@@ -879,7 +962,7 @@ const App = () => {
                               className="text-lg font-black text-slate-200 hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1 group"
                               title="Click para editar balance"
                             >
-                              ${debt.balance.toLocaleString()}
+                              {formatMoney(debt.balance)}
                               <Edit3 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-400" />
                             </button>
                             {debt.apr > 0 && (
@@ -910,7 +993,7 @@ const App = () => {
                       </div>
                       <div className="flex justify-between mt-1.5 text-[10px] text-slate-500">
                         <span>{pct.toFixed(0)}% pagado</span>
-                        <span>${(debt.initial - debt.balance).toLocaleString()} abonado</span>
+                        <span>{formatMoney(debt.initial - debt.balance)} abonado</span>
                       </div>
                     </div>
                   )
@@ -988,7 +1071,7 @@ const App = () => {
                               <span className="text-[10px] text-slate-600">•</span>
                               <span className="text-[10px] text-slate-500">Pagos: {payCount}</span>
                               <span className="text-[10px] text-slate-600">•</span>
-                              <span className="text-[10px] text-slate-400">Último: ${log.amount}</span>
+                              <span className="text-[10px] text-slate-400">Último: {formatMoney(log.amount)}</span>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-3">
@@ -1010,7 +1093,7 @@ const App = () => {
                                   inputType: 'number',
                                   placeholder: '0.00',
                                   onConfirm: (val) => {
-                                    const parsed = parseFloat(val);
+                                    const parsed = parseMoneyInput(val);
                                     if (!isNaN(parsed) && parsed > 0) {
                                       const inQ1 = q1Tasks.find(t => t.id === log.taskId);
                                       if (inQ1) {
@@ -1042,9 +1125,8 @@ const App = () => {
                 <PieChartIcon className="w-5 h-5 text-indigo-400" />
                 Distribución de Presupuesto (Base)
               </h2>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+              <div className="h-64 w-full min-w-0 min-h-64 flex items-center justify-center overflow-hidden">
+                  <PieChart width={320} height={250}>
                     <Pie data={[
                       { name: 'Gastos Fijos', value: expenses.reduce((a, c) => a + c.amount, 0) },
                       { name: 'Abono Deudas', value: totalMinimosOtras + poderAtaqueActiva },
@@ -1057,7 +1139,6 @@ const App = () => {
                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} />
                     <Legend wrapperStyle={{ fontSize: '12px', color: '#cbd5e1' }} />
                   </PieChart>
-                </ResponsiveContainer>
               </div>
             </section>
 
@@ -1075,8 +1156,8 @@ const App = () => {
                     Fondo de Emergencia (3 Meses)
                   </h2>
                   <div className="flex justify-between text-sm text-indigo-200/70 mb-4">
-                    <span>Actual: ${fondoActualVal.toLocaleString()}</span>
-                    <span>Meta: ${metaEmergencia3Meses.toLocaleString()}</span>
+                    <span>Actual: {formatMoney(fondoActualVal)}</span>
+                    <span>Meta: {formatMoney(metaEmergencia3Meses)}</span>
                   </div>
                   <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden border border-slate-700">
                     <div className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full relative transition-all duration-1000" style={{ width: `${pctEmergencia}%` }}>
@@ -1150,6 +1231,41 @@ const App = () => {
             </div>
 
             {/* Próximos Pagos desde Payment Logs */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {[
+                { title: 'Ingresos', type: 'income', items: incomes, icon: Wallet, color: 'text-emerald-400' },
+                { title: 'Gastos', type: 'expense', items: expenses, icon: TrendingDown, color: 'text-red-400' },
+                { title: 'Deudas', type: 'debt', items: debts, icon: CreditCard, color: 'text-amber-400' },
+              ].map((section) => {
+                const SectionIcon = section.icon;
+                return (
+                  <div key={section.type} className="glass-card p-4 rounded-xl">
+                    <h3 className={`text-sm font-bold flex items-center gap-2 mb-3 ${section.color}`}>
+                      <SectionIcon className="w-4 h-4" /> {section.title}
+                    </h3>
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                      {section.items.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => updateDueDay(section.type, item.id)}
+                          className="w-full flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 hover:border-indigo-500/40 hover:bg-indigo-500/10 transition-all text-left"
+                          title="Editar vencimiento"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-200 truncate">{item.name}</p>
+                            <p className="text-[10px] text-slate-500">{formatMoney(item.amount ?? item.balance)}</p>
+                          </div>
+                          <span className="text-xs font-black text-slate-300 bg-slate-950/70 border border-slate-700 rounded-lg px-2.5 py-1 flex-shrink-0">
+                            Día {item.dueDay || '-'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             {(() => {
               // Build a lookup map of task names from q1/q2 tasks
               const taskNameMap = {};
@@ -1202,7 +1318,7 @@ const App = () => {
                                 <p className="text-[10px] text-slate-500">{formatDateShort(item.nextPayDate)} · <span className="text-slate-400">{freqLabel[item.frequency] || item.frequency}</span></p>
                               </div>
                             </div>
-                            <span className="text-sm font-bold text-slate-300">${item.amount}</span>
+                            <span className="text-sm font-bold text-slate-300">{formatMoney(item.amount)}</span>
                           </div>
                         );
                       })}
@@ -1238,7 +1354,7 @@ const App = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs font-bold text-emerald-400">${log.amount}</span>
+                          <span className="text-xs font-bold text-emerald-400">{formatMoney(log.amount)}</span>
                           <Edit3 className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </button>
@@ -1295,19 +1411,19 @@ const App = () => {
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                       <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
                         <p className="text-slate-500 text-xs mb-1">Abonado a Capital</p>
-                        <p className="text-emerald-400 font-bold text-lg">${record.totalPagado.toLocaleString()}</p>
+                        <p className="text-emerald-400 font-bold text-lg">{formatMoney(record.totalPagado)}</p>
                       </div>
                       <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
                         <p className="text-slate-500 text-xs mb-1">Interés Generado</p>
-                        <p className="text-red-400 font-bold text-lg">${record.totalInteres.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                        <p className="text-red-400 font-bold text-lg">{formatMoney(record.totalInteres)}</p>
                       </div>
                       <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
                         <p className="text-slate-500 text-xs mb-1">Side Hustles Mes</p>
-                        <p className="text-indigo-400 font-bold text-lg">${record.sideHustlesMonto.toLocaleString()}</p>
+                        <p className="text-indigo-400 font-bold text-lg">{formatMoney(record.sideHustlesMonto)}</p>
                       </div>
                       <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/50">
                         <p className="text-slate-500 text-xs mb-1">Deuda Restante</p>
-                        <p className="text-slate-300 font-bold text-lg">${record.deudaRestante.toLocaleString()}</p>
+                        <p className="text-slate-300 font-bold text-lg">{formatMoney(record.deudaRestante)}</p>
                       </div>
                     </div>
                   </div>
@@ -1329,7 +1445,7 @@ const App = () => {
               </div>
               <div className="glass-card px-4 py-2 rounded-xl">
                 <p className="text-[10px] text-slate-500 uppercase font-bold">Liquidez Total</p>
-                <p className="text-lg font-black text-emerald-400">${wallets.reduce((a, c) => a + c.balance, 0).toLocaleString()}</p>
+                <p className="text-lg font-black text-emerald-400">{formatMoney(wallets.reduce((a, c) => a + c.balance, 0))}</p>
               </div>
             </div>
 
@@ -1354,7 +1470,7 @@ const App = () => {
 
                     <div className="mb-5 relative z-10">
                       <p className="text-3xl font-black text-white tracking-tighter">
-                        ${wallet.balance.toLocaleString()}
+                        {formatMoney(wallet.balance)}
                       </p>
                     </div>
 
@@ -1369,7 +1485,7 @@ const App = () => {
                             inputType: 'number',
                             placeholder: '0.00',
                             onConfirm: (val) => {
-                              const parsed = parseFloat(val);
+                              const parsed = parseMoneyInput(val);
                               if (!isNaN(parsed) && parsed > 0) {
                                 const newWallets = [...wallets];
                                 newWallets[idx].balance += parsed;
@@ -1390,7 +1506,7 @@ const App = () => {
                             inputType: 'number',
                             placeholder: '0.00',
                             onConfirm: (val) => {
-                              const parsed = parseFloat(val);
+                              const parsed = parseMoneyInput(val);
                               if (!isNaN(parsed) && parsed > 0) {
                                 const newWallets = [...wallets];
                                 newWallets[idx].balance = Math.max(0, newWallets[idx].balance - parsed);
